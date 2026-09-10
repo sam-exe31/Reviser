@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reviser — Light Theme</title>
+<link rel="stylesheet" href="./theme.css" />
+</head>
+<body>
+<div class="rv-shell">
+
+  <!-- ============================ RAIL ============================ -->
+  <aside class="rv-rail">
+    <div class="rv-wordmark">
+      <svg width="30" height="30" viewBox="0 0 64 64" fill="none" style="filter:drop-shadow(0 3px 8px rgba(58,92,224,0.3));">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#4a6bea"/><stop offset="100%" stop-color="#2f4dc4"/></linearGradient></defs>
+        <rect x="4" y="4" width="56" height="56" rx="17" fill="url(#lg)"/>
+        <path d="M32 17 L36.5 27.5 L47 32 L36.5 36.5 L32 47 L27.5 36.5 L17 32 L27.5 27.5 Z" fill="#fff"/>
+        <circle cx="32" cy="32" r="2.6" fill="#2f4dc4"/>
+      </svg>
+      <div><div class="name font-serif">Reviser</div><div class="tag">spaced repetition</div></div>
+    </div>
+
+    <nav class="rv-nav">
+      <div class="group">Workspace</div>
+      <button class="rv-nav-item is-active"><span class="ic" data-ic="layout"></span><span class="lbl">Dashboard</span></button>
+      <button class="rv-nav-item"><span class="ic" data-ic="check-square"></span><span class="lbl">Today &amp; Due</span><span class="rv-nav-count">5</span></button>
+      <button class="rv-nav-item"><span class="ic" data-ic="message-square"></span><span class="lbl">AI Assistant</span></button>
+      <button class="rv-nav-item"><span class="ic" data-ic="target"></span><span class="lbl">Monthly Goals</span></button>
+      <button class="rv-nav-item"><span class="ic" data-ic="book-open"></span><span class="lbl">Problem Bank</span></button>
+      <button class="rv-nav-item"><span class="ic" data-ic="history"></span><span class="lbl">Review &amp; Insights</span></button>
+    </nav>
+
+    <div class="rv-streak">
+      <div class="top">
+        <div class="num font-serif">12<small> days</small></div>
+        <div class="mono-label">Study streak</div>
+      </div>
+      <div class="rv-spark" title="Last 7 days">
+        <span style="height:55%"></span><span style="height:80%"></span><span class="miss" style="height:30%"></span>
+        <span style="height:70%"></span><span style="height:90%"></span><span style="height:100%"></span><span style="height:78%"></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================ MAIN ============================ -->
+  <main class="rv-main">
+    <div class="rv-topbar">
+      <div class="rv-crumb"><b>Dashboard</b> &nbsp;·&nbsp; Mon, Sep 8 2026</div>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <div class="rv-status"><span class="pulsing-dot" style="background:var(--accent-emerald)"></span> Engine online</div>
+        <button class="btn-icon"><span data-ic="refresh" data-size="14"></span></button>
+      </div>
+    </div>
+
+    <div class="rv-container">
+
+      <!-- ---- HERO: greeting + the signature memory curve ---- -->
+      <header class="rv-hero">
+        <div class="rv-eyebrow">Monday evening · Week 2 of 4</div>
+        <h1 class="rv-greet font-serif">Good evening, Sam.<br><em>Five recalls</em> are ripe today.</h1>
+        <p class="rv-sub">Your memory is holding at 94% stability. Clear the ripe reviews before they decay, then chip away at today's slice of the monthly plan — eight problems across arrays, graphs and DBMS.</p>
+
+        <div class="rv-curve-card">
+          <div class="rv-curve-head">
+            <div>
+              <h3 class="font-serif">Memory retention</h3>
+              <p>Each review lifts the curve and pushes the next one further out.</p>
+            </div>
+            <div class="rv-legend">
+              <span><i style="background:#3a5ce0"></i> Recall strength</span>
+              <span><i style="background:#0e9d6e"></i> Review event</span>
+            </div>
+          </div>
+
+          <svg viewBox="0 0 900 220" width="100%" height="212" preserveAspectRatio="none" role="img" aria-label="Retention decays between reviews and resets upward at each review">
+            <defs>
+              <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"  stop-color="rgba(58,92,224,0.20)"/>
+                <stop offset="100%" stop-color="rgba(58,92,224,0.0)"/>
+              </linearGradient>
+            </defs>
+
+            <!-- reference gridlines -->
+            <line x1="40" y1="60"  x2="860" y2="60"  stroke="#eef1f7" stroke-width="1" vector-effect="non-scaling-stroke"/>
+            <line x1="40" y1="120" x2="860" y2="120" stroke="#eef1f7" stroke-width="1" vector-effect="non-scaling-stroke"/>
+            <line x1="40" y1="180" x2="860" y2="180" stroke="#e5e9f1" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+            <text x="12" y="64"  font-size="10" fill="#98a1b3" font-family="JetBrains Mono, monospace">100</text>
+            <text x="18" y="124" font-size="10" fill="#98a1b3" font-family="JetBrains Mono, monospace">50</text>
+            <text x="22" y="184" font-size="10" fill="#98a1b3" font-family="JetBrains Mono, monospace">0</text>
+
+            <!-- decay area + line (drawn in on load) -->
+            <path class="rv-curve-area" fill="url(#fillGrad)"
+              d="M40,60 Q140,112 250,150 L250,64 Q350,106 470,150 L470,58 Q580,102 690,152 L690,52 Q780,92 860,128 L860,180 L40,180 Z"/>
+            <path class="rv-curve-line" fill="none" stroke="#3a5ce0" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"
+              d="M40,60 Q140,112 250,150 L250,64 Q350,106 470,150 L470,58 Q580,102 690,152 L690,52 Q780,92 860,128"/>
+
+            <!-- review reset markers -->
+            <circle class="rv-curve-dot" style="animation-delay:.7s"  cx="250" cy="64" r="5" fill="#0e9d6e" stroke="#fff" stroke-width="2.5"/>
+            <circle class="rv-curve-dot" style="animation-delay:1.1s" cx="470" cy="58" r="5" fill="#0e9d6e" stroke="#fff" stroke-width="2.5"/>
+            <circle class="rv-curve-dot" style="animation-delay:1.5s" cx="690" cy="52" r="5" fill="#0e9d6e" stroke="#fff" stroke-width="2.5"/>
+            <!-- "today" marker -->
+            <circle class="rv-curve-dot" style="animation-delay:1.9s" cx="860" cy="128" r="5.5" fill="#3a5ce0" stroke="#fff" stroke-width="2.5"/>
+            <text class="rv-curve-dot" style="animation-delay:1.9s" x="858" y="118" text-anchor="end" font-size="11" fill="#3a5ce0" font-weight="700" font-family="JetBrains Mono, monospace">today</text>
+          </svg>
+        </div>
+      </header>
+
+      <!-- ---- AT A GLANCE: one divided panel ---- -->
+      <section class="rv-glance stagger-in">
+        <div class="rv-glance-cell">
+          <div class="rv-glance-num" style="color:var(--accent-cyan)">5</div>
+          <div class="rv-glance-cap">Due for review<b>Spaced repetition</b></div>
+        </div>
+        <div class="rv-glance-cell">
+          <div class="rv-glance-num">8</div>
+          <div class="rv-glance-cap">Daily target<b>Sliced from goals</b></div>
+        </div>
+        <div class="rv-glance-cell">
+          <div class="rv-glance-num" style="color:var(--accent-emerald)">3 <small>/ 6</small></div>
+          <div class="rv-glance-cap">Tasks done<b>Today's checklist</b></div>
+        </div>
+        <div class="rv-glance-cell">
+          <div class="rv-glance-num">18</div>
+          <div class="rv-glance-cap">Days left<b>In this cycle</b></div>
+        </div>
+      </section>
+
+      <!-- ---- TWO COLUMN: review queue + month progress ---- -->
+      <section class="rv-cols">
+        <div>
+          <div class="rv-section-head">
+            <h2 class="font-serif">Due for review</h2>
+            <button class="link">See all <span data-ic="arrow-right" data-size="13"></span></button>
+          </div>
+
+          <div class="rv-review-list">
+            <div class="rv-review-item">
+              <div class="rv-tick overdue">2d</div>
+              <div class="rv-review-body">
+                <div class="rv-review-title">Course Schedule</div>
+                <div class="rv-review-meta">Graphs · LeetCode <span class="badge badge-hard">Hard</span></div>
+              </div>
+              <div class="rv-recall"><div class="bar"><div class="fill" style="width:48%"></div></div><div class="cap"><span>recall</span><span>48%</span></div></div>
+              <button class="rv-review-btn">Review</button>
+            </div>
+
+            <div class="rv-review-item">
+              <div class="rv-tick">today</div>
+              <div class="rv-review-body">
+                <div class="rv-review-title">LRU Cache</div>
+                <div class="rv-review-meta">Design · LeetCode <span class="badge badge-hard">Hard</span></div>
+              </div>
+              <div class="rv-recall"><div class="bar"><div class="fill" style="width:35%"></div></div><div class="cap"><span>recall</span><span>35%</span></div></div>
+              <button class="rv-review-btn">Review</button>
+            </div>
+
+            <div class="rv-review-item">
+              <div class="rv-tick">today</div>
+              <div class="rv-review-body">
+                <div class="rv-review-title">Merge Intervals</div>
+                <div class="rv-review-meta">Arrays · LeetCode <span class="badge badge-medium">Medium</span></div>
+              </div>
+              <div class="rv-recall"><div class="bar"><div class="fill" style="width:62%"></div></div><div class="cap"><span>recall</span><span>62%</span></div></div>
+              <button class="rv-review-btn">Review</button>
+            </div>
+
+            <div class="rv-review-item">
+              <div class="rv-tick">1d</div>
+              <div class="rv-review-body">
+                <div class="rv-review-title">Two Sum</div>
+                <div class="rv-review-meta">Arrays · LeetCode <span class="badge badge-easy">Easy</span></div>
+              </div>
+              <div class="rv-recall"><div class="bar"><div class="fill" style="width:88%"></div></div><div class="cap"><span>recall</span><span>88%</span></div></div>
+              <button class="rv-review-btn">Review</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="rv-section-head">
+            <h2 class="font-serif">This month</h2>
+            <button class="link">Manage</button>
+          </div>
+          <div class="rv-month">
+            <div class="rv-progline">
+              <div class="top"><span class="name">Arrays &amp; Hashing</span><span class="val">12 / 20</span></div>
+              <div class="track"><div class="fill" style="width:60%; background:linear-gradient(90deg,#3a5ce0,#6d84ee)"></div></div>
+            </div>
+            <div class="rv-progline">
+              <div class="top"><span class="name">Graphs &amp; Trees</span><span class="val">4 / 10</span></div>
+              <div class="track"><div class="fill" style="width:40%; background:linear-gradient(90deg,#5a54e6,#8b54d9)"></div></div>
+            </div>
+            <div class="rv-progline">
+              <div class="top"><span class="name">DBMS Theory</span><span class="val">7 / 8</span></div>
+              <div class="track"><div class="fill" style="width:88%; background:linear-gradient(90deg,#0e9d6e,#35c48d)"></div></div>
+            </div>
+            <div style="margin-top:6px; padding-top:16px; border-top:1px solid var(--border-subtle); display:flex; align-items:center; gap:10px;">
+              <span data-ic="sparkles" data-size="15" style="color:var(--accent-purple)"></span>
+              <span style="font-size:0.84rem; color:var(--text-muted)">On pace to finish <b style="color:var(--text-serif-title)">2 days early</b>.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- REVIEW RHYTHM: SM-2 intervals as stations on one line ---- -->
+      <section class="rv-rhythm">
+        <div class="rv-section-head">
+          <h2 class="font-serif">Your review rhythm</h2>
+          <span class="mono-label">SuperMemo-2 · EF 2.5</span>
+        </div>
+        <div class="rv-stations">
+          <div class="rv-station done"><div class="dot"></div><div class="iv">1d</div><div class="lb">Encode</div></div>
+          <div class="rv-station done"><div class="dot"></div><div class="iv">3d</div><div class="lb">Consolidate</div></div>
+          <div class="rv-station"><div class="dot"></div><div class="iv">7d</div><div class="lb">Store</div></div>
+          <div class="rv-station"><div class="dot"></div><div class="iv">14d</div><div class="lb">Retain</div></div>
+          <div class="rv-station"><div class="dot"></div><div class="iv">30d</div><div class="lb">Master</div></div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  const ICONS = {
+    'sparkles':'<path d="M12 3l1.9 5.7L19.6 10l-5.7 1.9L12 17.6l-1.9-5.7L4.4 10l5.7-1.3z"/>',
+    'layout':'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+    'check-square':'<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+    'message-square':'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    'target':'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    'book-open':'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+    'history':'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+    'arrow-right':'<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+    'refresh':'<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/>'
+  };
+  const FILLED = new Set(['sparkles']);
+  document.querySelectorAll('[data-ic]').forEach(el => {
+    const p = ICONS[el.getAttribute('data-ic')]; if (!p) return;
+    const s = el.getAttribute('data-size') || 18, f = FILLED.has(el.getAttribute('data-ic'));
+    el.innerHTML = '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="'+(f?'currentColor':'none')+'" stroke="'+(f?'none':'currentColor')+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+{
+  "name": "reviser-desktop",
+  "version": "1.0.0",
+  "description": "Reviser — Personal Planning & Spaced Repetition Desktop App",
+  "main": "main.js",
+  "author": "Reviser Team",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir && node apply_icon.js",
+    "dist": "electron-builder && node apply_icon.js"
+  },
+  "build": {
+    "forceCodeSigning": false,
+    "appId": "com.reviser.app",
+    "productName": "Reviser",
+    "directories": {
+      "output": "dist-app"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "icon.png",
+      "icon.ico",
+      "dist-frontend/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../target/Reviser-0.0.1-SNAPSHOT.jar",
+        "to": "reviser.jar"
+      }
+    ],
+    "win": {
+      "target": "dir",
+      "icon": "icon.ico",
+      "signAndEditExecutable": false
+    }
+  },
+  "dependencies": {
+    "cross-fetch": "^4.0.0"
+  },
+  "devDependencies": {
+    "@electron/asar": "^4.3.0",
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.2",
+    "rcedit": "^5.0.2"
+  }
+}

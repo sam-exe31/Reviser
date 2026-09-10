@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Starting Reviser...</title>
+  <style>
+    :root {
+      --bg: #161922;
+      --card-bg: #1e222d;
+      --border: #2a303f;
+      --text-title: #f8fafc;
+      --text-muted: #8b9bb4;
+      --accent: #2563eb;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f3eee4;
+        --card-bg: #faf5eb;
+        --border: #dfd7c6;
+        --text-title: #1e2024;
+        --text-muted: #646a75;
+        --accent: #2563eb;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: transparent;
+      color: var(--text-title);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      -webkit-app-region: drag;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 38px 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+      width: 320px;
+      text-align: center;
+    }
+
+    .logo-container {
+      width: 72px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
+      animation: logoPulse 2.5s infinite ease-in-out;
+    }
+
+    .logo-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: var(--text-title);
+      margin-bottom: 20px;
+      font-family: 'Newsreader', Georgia, serif;
+    }
+
+    .loader-track {
+      width: 100%;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .loader-thumb {
+      width: 40%;
+      height: 100%;
+      background: var(--accent);
+      position: absolute;
+      border-radius: 2px;
+      animation: loadSlide 1.2s infinite ease-in-out;
+    }
+
+    .status-text {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.3px;
+    }
+
+    @keyframes loadSlide {
+      0% { left: -40%; }
+      100% { left: 100%; }
+    }
+
+    @keyframes logoPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-container">
+      <img src="icon.png" alt="Reviser Logo" />
+    </div>
+    
+    <div class="title">REVISER</div>
+
+    <div class="loader-track">
+      <div class="loader-thumb"></div>
+    </div>
+    
+    <div class="status-text" id="status">Starting Reviser...</div>
+  </div>
+</body>
+</html>

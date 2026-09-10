@@ -1,0 +1,46 @@
+# Render Blueprint — one Docker web service + one managed Postgres.
+#
+# Deploy: push this repo to GitHub, then in Render click
+#   New +  ->  Blueprint  ->  pick this repo.
+# Render provisions the database and the web service from this file. After the
+# first deploy, fill in the two `sync: false` values (see comments + DEPLOY.md).
+
+databases:
+  - name: reviser-db
+    databaseName: reviser
+    plan: free
+
+services:
+  - type: web
+    name: reviser
+    runtime: docker
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      # ---- Database ----
+      # Spring needs the JDBC form of the URL. Render's connection string is
+      #   postgresql://user:pass@host:5432/db
+      # so this one is set MANUALLY: take the reviser-db "Info" page's Internal
+      # host + database and enter:
+      #   jdbc:postgresql://<internal-host>:5432/<database>
+      # (This mismatch is the single most common one-service deploy failure.)
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: reviser-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: reviser-db
+          property: password
+
+      # ---- Gemini AI ----
+      # Paste your ROTATED key in the Render dashboard (never commit it).
+      # If left blank, the app still runs using neutral offline fallbacks.
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # ---- Misc ----
+      - key: JPA_SHOW_SQL
+        value: "false"
