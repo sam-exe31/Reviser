@@ -14,9 +14,38 @@ import org.springframework.web.bind.annotation.RestController;
 public class ChatParseController {
 
     private final GeminiParsingService geminiParsingService;
+    private final org.example.reviser.problem.LeetCodeService leetCodeService;
 
-    public ChatParseController(GeminiParsingService geminiParsingService) {
+    public ChatParseController(GeminiParsingService geminiParsingService,
+                               org.example.reviser.problem.LeetCodeService leetCodeService) {
         this.geminiParsingService = geminiParsingService;
+        this.leetCodeService = leetCodeService;
+    }
+
+    @PostMapping("/leetcode-lookup")
+    public ResponseEntity<java.util.Map<String, Object>> leetcodeLookup(@RequestBody java.util.Map<String, Object> body) {
+        String number = body.getOrDefault("number", "").toString();
+        java.util.Map<String, Object> response = leetCodeService.fetchProblemByNumber(number);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/leetcode-recent")
+    public ResponseEntity<java.util.List<java.util.Map<String, Object>>> leetcodeRecent(@RequestBody java.util.Map<String, Object> body) {
+        String username = body.getOrDefault("username", "").toString();
+        int limit = body.containsKey("limit") ? Integer.parseInt(body.get("limit").toString()) : 50;
+        java.util.List<java.util.Map<String, Object>> response = leetCodeService.fetchRecentAcSubmissions(username, limit);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/evaluate-rescheduling")
+    public ResponseEntity<java.util.Map<String, Object>> evaluateRescheduling(@RequestBody java.util.Map<String, Object> body) {
+        String stepTitle = body.getOrDefault("stepTitle", "").toString();
+        String category = body.getOrDefault("category", "DSA").toString();
+        Integer targetCount = body.containsKey("targetCount") ? Integer.valueOf(body.get("targetCount").toString()) : 10;
+        Integer completedCount = body.containsKey("completedCount") ? Integer.valueOf(body.get("completedCount").toString()) : 0;
+        String context = body.containsKey("context") ? body.get("context").toString() : "";
+        java.util.Map<String, Object> response = geminiParsingService.evaluateStepRescheduling(stepTitle, category, targetCount, completedCount, context);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/parse")

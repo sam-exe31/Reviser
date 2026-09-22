@@ -28,6 +28,9 @@ public class MonthlyGoal {
     @Column(name = "ai_analysis_json", columnDefinition = "TEXT")
     private String aiAnalysisJson;
 
+    @Column(name = "status")
+    private String status = "ACCEPTED"; // "DRAFT" or "ACCEPTED"
+
     @OneToMany(mappedBy = "monthlyGoal", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<GoalTarget> targets = new ArrayList<>();
 
@@ -57,6 +60,9 @@ public class MonthlyGoal {
 
     public String getAiAnalysisJson() { return aiAnalysisJson; }
     public void setAiAnalysisJson(String aiAnalysisJson) { this.aiAnalysisJson = aiAnalysisJson; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
     public List<GoalTarget> getTargets() { return targets; }
     public void setTargets(List<GoalTarget> targets) { this.targets = targets; }

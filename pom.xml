@@ -90,7 +90,7 @@
 
             <!-- Build the React SPA and bundle it into the jar so a single
                  Spring Boot service serves both the API and the frontend.
-                 self-downloads a pinned Node, runs `npm ci` + `npm run build:web`
+                 self-downloads a pinned Node, runs `npm install` + `npm run build:web`
                  at generate-resources; the dist is copied into the classpath's
                  /static at prepare-package, then spring-boot:repackage jars it. -->
             <plugin>
@@ -120,7 +120,12 @@
                         </goals>
                         <phase>generate-resources</phase>
                         <configuration>
-                            <arguments>ci</arguments>
+                            <!-- Use `install`, not `ci`. `npm ci` starts by deleting
+                                 node_modules wholesale, which on Windows fails with
+                                 EPERM when antivirus / the indexer holds the rolldown
+                                 native binary (rolldown-binding...node) open. `install`
+                                 reconciles in place and does not unlink the locked file. -->
+                            <arguments>install</arguments>
                         </configuration>
                     </execution>
                     <execution>

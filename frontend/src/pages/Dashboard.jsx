@@ -14,9 +14,16 @@ function DashboardSkeleton() {
         <Skeleton width="70%" height={38} style={{ marginBottom: 10 }} />
         <Skeleton width="90%" height={16} style={{ marginBottom: 6 }} />
         <Skeleton width="55%" height={16} style={{ marginBottom: 24 }} />
-        <div className="rv-curve-card">
-          <Skeleton width={180} height={18} style={{ marginBottom: 12 }} />
-          <Skeleton width="100%" height={200} radius="var(--radius-md)" />
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-main)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '20px 24px',
+          boxShadow: 'var(--shadow-card)',
+          marginBottom: '24px'
+        }}>
+          <Skeleton width={200} height={20} style={{ marginBottom: 12 }} />
+          <Skeleton width="100%" height={140} radius="var(--radius-md)" />
         </div>
       </header>
 
@@ -96,8 +103,44 @@ export default function Dashboard({ onNavigate, onStartReview, onOpenAddModal })
     }
   };
 
+  // Re-fetch the streak/overview numbers without a full-screen reload. The
+  // streak lives in `overview`, so completing a task (which only mutates
+  // `todos`) would otherwise leave the counter stale until an app restart.
+  const refreshOverview = async () => {
+    try {
+      const [overviewData, dueData, todosData] = await Promise.all([
+        api.getTodayOverview().catch(() => null),
+        api.getDueReviews().catch(() => []),
+        api.getTodos(todayKey).catch(() => [])
+      ]);
+      if (overviewData) setOverview(overviewData);
+      setDueReviews(dueData || []);
+      setTodos(todosData || []);
+    } catch (err) {
+      console.error('Error refreshing overview:', err);
+    }
+  };
+
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Live refresh: pull fresh streak/overview numbers whenever the app regains
+  // focus or becomes visible again, and whenever a task is toggled anywhere in
+  // the app (tabs stay mounted, so the dashboard must be told to re-read the
+  // streak instead of waiting for a restart).
+  useEffect(() => {
+    const onFocus = () => refreshOverview();
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshOverview(); };
+    const onTodosChanged = () => refreshOverview();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('reviser:todos-changed', onTodosChanged);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('reviser:todos-changed', onTodosChanged);
+    };
   }, []);
 
   // Subtask toggle on Dashboard
@@ -114,6 +157,10 @@ export default function Dashboard({ onNavigate, onStartReview, onOpenAddModal })
           colors: ['#0ea5a4', '#059669', '#d97706']
         });
       }
+
+      // A completed/uncompleted task changes the streak — refresh it now so the
+      // counter updates live instead of after an app restart.
+      refreshOverview();
     } catch (err) {
       console.error('Error toggling subtask:', err);
     }
@@ -156,7 +203,7 @@ export default function Dashboard({ onNavigate, onStartReview, onOpenAddModal })
         <div className="rv-eyebrow">
           {dayName} {greetingTime} · Week {weekNum} of 4
         </div>
-        
+
         <h1 className="rv-greet font-serif">
           Good {greetingTime}.<br />
           <em>{dueCount > 0 ? `${dueCount} recall${dueCount > 1 ? 's are' : ' is'}` : 'All recalls are'}</em> ripe today.
@@ -169,70 +216,140 @@ export default function Dashboard({ onNavigate, onStartReview, onOpenAddModal })
           }
         </p>
 
-        {/* The Signature Memory Retention Curve */}
-        <div className="rv-curve-card">
-          <div className="rv-curve-head">
+        {/* Real Weekly Activity — Tasks Completed This Week */}
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-main)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '22px 24px',
+          boxShadow: 'var(--shadow-card)',
+          marginTop: '20px'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '18px',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
             <div>
-              <h3 className="font-serif">Memory retention</h3>
-              <p>Each review lifts the curve and pushes the next recall interval further out.</p>
+              <h3 className="font-serif" style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-serif-title)' }}>
+                Tasks Completed This Week
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                Real weekly completion activity logged from your daily tasks &amp; roadmap tracks (Mon–Sun).
+              </p>
             </div>
-            <div className="rv-legend">
-              <span><i style={{ background: 'var(--accent-cyan)' }}></i> Recall strength</span>
-              <span><i style={{ background: 'var(--accent-emerald)' }}></i> Review event</span>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-sm)',
+              background: (weeklyActivity.reduce((acc, d) => acc + (d.completedCount || 0), 0)) > 0 ? 'rgba(52, 199, 89, 0.1)' : 'var(--bg-card-inset)',
+              border: (weeklyActivity.reduce((acc, d) => acc + (d.completedCount || 0), 0)) > 0 ? '1px solid rgba(52, 199, 89, 0.3)' : '1px solid var(--border-subtle)',
+              fontFamily: 'JetBrains Mono',
+              fontSize: '0.86rem',
+              fontWeight: '700',
+              color: (weeklyActivity.reduce((acc, d) => acc + (d.completedCount || 0), 0)) > 0 ? 'var(--color-green)' : 'var(--text-muted)'
+            }}>
+              <Check size={14} />
+              <span>{weeklyActivity.reduce((acc, d) => acc + (d.completedCount || 0), 0)} Completed This Week</span>
             </div>
           </div>
 
-          <svg 
-            viewBox="0 0 900 220" 
-            width="100%" 
-            height="200" 
-            preserveAspectRatio="none" 
-            role="img" 
-            aria-label="Retention curve decaying and resetting upward on each review"
-          >
-            <defs>
-              <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="rgba(14,165,164,0.18)" />
-                <stop offset="100%" stopColor="rgba(14,165,164,0.0)" />
-              </linearGradient>
-            </defs>
+          {/* 7-Day Interactive Bar Chart */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            gap: '12px',
+            alignItems: 'end',
+            minHeight: '140px',
+            padding: '16px 8px 8px 8px',
+            background: 'var(--bg-card-inset)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-subtle)'
+          }}>
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((dayName, idx) => {
+              const dayData = weeklyActivity[idx];
+              const count = dayData?.completedCount || 0;
+              const dateStr = dayData?.date ? String(dayData.date) : '';
+              const isToday = dateStr === todayKey;
+              const totalW = weeklyActivity.reduce((acc, d) => acc + (d.completedCount || 0), 0);
+              const maxW = Math.max(1, ...weeklyActivity.map(d => d.completedCount || 0));
+              const heightPct = totalW > 0 ? Math.max(10, Math.round((count / maxW) * 100)) : 8;
 
-            {/* Gridlines */}
-            <line x1="40" y1="50"  x2="860" y2="50"  stroke="var(--border-subtle)" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
-            <line x1="40" y1="110" x2="860" y2="110" stroke="var(--border-subtle)" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
-            <line x1="40" y1="170" x2="860" y2="170" stroke="var(--border-main)" strokeWidth="1.5" vectorEffect="non-scaling-stroke"/>
-            <text x="14" y="54"  fontSize="10" fill="var(--text-dim)" fontFamily="JetBrains Mono, monospace">100</text>
-            <text x="20" y="114" fontSize="10" fill="var(--text-dim)" fontFamily="JetBrains Mono, monospace">50</text>
-            <text x="24" y="174" fontSize="10" fill="var(--text-dim)" fontFamily="JetBrains Mono, monospace">0</text>
+              return (
+                <div key={idx} style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '8px',
+                  height: '100%',
+                  justifyContent: 'flex-end'
+                }}>
+                  <div style={{
+                    fontSize: '0.78rem',
+                    fontFamily: 'JetBrains Mono',
+                    fontWeight: '700',
+                    color: count > 0 ? 'var(--color-green)' : 'var(--text-dim)'
+                  }}>
+                    {count}
+                  </div>
 
-            {/* Decay area + line */}
-            <path 
-              className="rv-curve-area" 
-              fill="url(#fillGrad)"
-              d="M40,50 Q140,105 250,145 L250,56 Q350,100 470,145 L470,52 Q580,96 690,148 L690,46 Q780,88 860,122 L860,170 L40,170 Z"
-            />
-            <path 
-              className="rv-curve-line" 
-              fill="none" 
-              stroke="var(--accent-cyan)" 
-              strokeWidth="2.75" 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              vectorEffect="non-scaling-stroke"
-              d="M40,50 Q140,105 250,145 L250,56 Q350,100 470,145 L470,52 Q580,96 690,148 L690,46 Q780,88 860,122"
-            />
+                  <div style={{
+                    width: '100%',
+                    maxWidth: '44px',
+                    height: `${heightPct}%`,
+                    minHeight: '8px',
+                    borderRadius: '4px 4px 2px 2px',
+                    background: count > 0
+                      ? (isToday ? 'linear-gradient(180deg, #10b981 0%, #059669 100%)' : 'var(--color-blue)')
+                      : 'var(--border-main)',
+                    boxShadow: count > 0 ? (isToday ? '0 0 10px rgba(16, 185, 129, 0.4)' : 'none') : 'none',
+                    transition: 'all 0.3s ease'
+                  }} />
 
-            {/* Review reset markers */}
-            <circle className="rv-curve-dot" style={{ animationDelay: '.6s' }} cx="250" cy="56" r="5" fill="var(--accent-emerald)" stroke="var(--bg-card)" strokeWidth="2.5"/>
-            <circle className="rv-curve-dot" style={{ animationDelay: '1.0s' }} cx="470" cy="52" r="5" fill="var(--accent-emerald)" stroke="var(--bg-card)" strokeWidth="2.5"/>
-            <circle className="rv-curve-dot" style={{ animationDelay: '1.4s' }} cx="690" cy="46" r="5" fill="var(--accent-emerald)" stroke="var(--bg-card)" strokeWidth="2.5"/>
-            
-            {/* Today marker */}
-            <circle className="rv-curve-dot" style={{ animationDelay: '1.8s' }} cx="860" cy="122" r="5.5" fill="var(--accent-cyan)" stroke="var(--bg-card)" strokeWidth="2.5"/>
-            <text className="rv-curve-dot" style={{ animationDelay: '1.8s' }} x="858" y="112" textAnchor="end" fontSize="11" fill="var(--accent-cyan)" fontWeight="700" fontFamily="JetBrains Mono, monospace">
-              today
-            </text>
-          </svg>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{
+                      fontSize: '0.72rem',
+                      fontFamily: 'JetBrains Mono',
+                      fontWeight: isToday ? '800' : '600',
+                      color: isToday ? 'var(--color-blue)' : 'var(--text-muted)'
+                    }}>
+                      {dayName}
+                    </div>
+                    {dateStr && (
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)' }}>
+                        {dateStr.slice(5)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {(weeklyActivity.reduce((acc, d) => acc + (d.completedCount || 0), 0)) === 0 && (
+            <div style={{
+              marginTop: '12px',
+              padding: '10px 14px',
+              background: 'rgba(56, 189, 248, 0.06)',
+              border: '1px solid rgba(56, 189, 248, 0.2)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.78rem',
+              color: 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <Sparkles size={14} color="var(--color-blue)" />
+              <span>
+                <strong>0 tasks completed this week.</strong> Complete tasks from your 6 roadmap tracks (DSA, Core CS, Workers Den, Spring Boot Drill, Applications / Referrals, Open Source) to see your real completion metrics rise.
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -340,7 +457,7 @@ export default function Dashboard({ onNavigate, onStartReview, onOpenAddModal })
                 {todos.reduce((acc, t) => acc + (t.subtasks ? t.subtasks.filter(s => s.completed).length : 0), 0)} / {Math.max(1, todos.reduce((acc, t) => acc + (t.subtasks ? t.subtasks.length : 0), 0))} completed
               </span>
             </div>
-            <div 
+            <div
               role="progressbar"
               aria-valuenow={(() => {
                 const totalSubs = todos.reduce((acc, t) => acc + (t.subtasks ? t.subtasks.length : 0), 0);
@@ -390,7 +507,7 @@ export default function Dashboard({ onNavigate, onStartReview, onOpenAddModal })
 
                 return (
                   <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flex: 1 }}>
-                    <div 
+                    <div
                       title={`${dayNames[idx]}: ${isToday ? (hasActivity ? 'Today (Active)' : 'Today (No activity yet)') : hasActivity ? `${dayData.completedCount} completed` : isPastOrToday ? 'No activity' : 'Upcoming'}`}
                       aria-label={`${dayNames[idx]}: ${isToday ? 'Today' : hasActivity ? 'Completed' : 'No activity'}`}
                       style={{
@@ -400,8 +517,8 @@ export default function Dashboard({ onNavigate, onStartReview, onOpenAddModal })
                         background: isToday && hasActivity
                           ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
                           : hasActivity
-                          ? 'rgba(16, 185, 129, 0.35)'
-                          : 'var(--border-subtle)',
+                            ? 'rgba(16, 185, 129, 0.35)'
+                            : 'var(--border-subtle)',
                         border: isToday ? '1px solid var(--accent-emerald)' : '1px solid var(--border-subtle)',
                         display: 'flex',
                         alignItems: 'center',
@@ -448,7 +565,7 @@ export default function Dashboard({ onNavigate, onStartReview, onOpenAddModal })
               const subPct = habitSubs.length > 0 ? Math.round((doneSubs / habitSubs.length) * 100) : (h.completed ? 100 : 0);
 
               return (
-                <div 
+                <div
                   key={h.id}
                   className="box-amber"
                   style={{
@@ -472,7 +589,7 @@ export default function Dashboard({ onNavigate, onStartReview, onOpenAddModal })
                   {/* Colorful Green Subtask Progress Bar */}
                   {habitSubs.length > 0 && (
                     <div style={{ marginBottom: '10px' }}>
-                      <div 
+                      <div
                         role="progressbar"
                         aria-valuenow={subPct}
                         aria-valuemin={0}
@@ -592,7 +709,7 @@ export default function Dashboard({ onNavigate, onStartReview, onOpenAddModal })
                         <span>{recallPercent}%</span>
                       </div>
                     </div>
-                    <button 
+                    <button
                       className="rv-review-btn"
                       onClick={() => onStartReview(item)}
                     >

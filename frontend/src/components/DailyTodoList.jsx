@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Check, 
-  Plus, 
-  Trash2, 
-  Clock, 
-  BookOpen, 
-  Sparkles, 
-  ChevronDown, 
-  ChevronUp, 
-  Flame, 
-  RotateCcw, 
-  PlusCircle, 
-  X, 
-  Layers, 
-  CheckSquare, 
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Check,
+  Plus,
+  Trash2,
+  Clock,
+  BookOpen,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Flame,
+  RotateCcw,
+  PlusCircle,
+  X,
+  Layers,
+  CheckSquare,
   Square,
   Wand2,
   Calendar,
@@ -76,7 +76,7 @@ function parseTaskInput(input, chosenCategory, chosenCount = 0) {
     const firstSplitIndex = clean.indexOf(delimiter);
     const parentPart = clean.substring(0, firstSplitIndex).trim();
     const restPart = clean.substring(firstSplitIndex + delimiter.length).trim();
-    
+
     parentTitle = parentPart.length > 0 ? parentPart : 'Daily Routine';
     const lowerParent = parentTitle.toLowerCase();
 
@@ -213,31 +213,49 @@ function parseTaskInput(input, chosenCategory, chosenCount = 0) {
   return { parentTitle, category, isHabit, subtasks };
 }
 
-const PRESET_PLANS = [
-  {
-    title: "Morning Habit & 3-Problem DSA Sprint",
-    prompt: "Morning routine with 1500 skipping rope, 2 Blind 75 Sliding Window problems in Java, and 1 DBMS Transactions lecture",
-    category: "Full Day"
-  },
-  {
-    title: "Core CS Theory Deep-Dive",
-    prompt: "DBMS Transaction Isolation Levels, OS Virtual Memory Paging, and 15-min flashcard recall",
-    category: "Theory"
-  },
-  {
-    title: "High-Intensity Recall & Review",
-    prompt: "Solve 2 due SM-2 spaced repetition cards, 1 new Hard Graph problem, and 1000 jump rope sets",
-    category: "Balanced"
+// Maps one AI/fallback plan task (from /chat/plan-daily) into a Daily Todo DTO.
+// Kept module-level so both the silent auto-generator and the manual fallback
+// button share exactly one mapping. Subtasks come from the plan when present,
+// otherwise they're derived locally so every task still gets meaningful sub-ticks.
+function mapPlanTaskToDto(t, dateKey) {
+  const titleLower = (t.title || '').toLowerCase();
+  const isHabit = t.category === 'habit' || t.taskType === 'streak' ||
+    titleLower.includes('rope') || titleLower.includes('gym');
+
+  let boxColor = 'box-blue';
+  if (isHabit) boxColor = 'box-amber';
+  else if (t.category === 'os_dbms' || t.category === 'recap') boxColor = 'box-purple';
+  else if (t.category === 'revision') boxColor = 'box-green';
+
+  let subtasks = [];
+  if (t.subtasks && Array.isArray(t.subtasks) && t.subtasks.length > 0) {
+    subtasks = t.subtasks.map((st, sidx) => ({
+      title: st.title || st.name || `Subtask ${sidx + 1}`,
+      category: detectSubtaskCategory(st.title || st.name, isHabit ? 'Habit' : 'DSA')
+    }));
+  } else {
+    const auto = parseTaskInput((t.title || '') + ' ' + (t.description || ''), isHabit ? 'Habit' : 'DSA');
+    subtasks = (auto.subtasks || []).map(st => ({ title: st.title, category: st.category }));
   }
-];
+
+  return {
+    title: t.title,
+    category: isHabit ? 'Habit' : (t.category === 'os_dbms' ? 'DBMS' : (t.category || 'DSA')),
+    isHabit,
+    estimatedMinutes: t.estimatedMinutes || 30,
+    colorClass: boxColor,
+    date: dateKey,
+    subtasks
+  };
+}
 
 const CURATED_ITEMS = [
-  { 
-    id: 'cq-1', 
-    title: 'Morning Routine: Skipping Rope 1500x', 
-    category: 'Habit', 
+  {
+    id: 'cq-1',
+    title: 'Morning Routine: Skipping Rope 1500x',
+    category: 'Habit',
     isHabit: true,
-    estimatedMinutes: 20, 
+    estimatedMinutes: 20,
     colorClass: 'box-amber',
     subtasks: [
       { id: 'st-1', title: '500 jumps warmup round', category: 'Warmup', completed: true },
@@ -245,12 +263,12 @@ const CURATED_ITEMS = [
       { id: 'st-3', title: '500 jumps cooldown & stretches', category: 'Warmup', completed: false }
     ]
   },
-  { 
-    id: 'cq-2', 
-    title: 'Two Sum (HashMap O(N) Invariant)', 
-    category: 'DSA', 
-    difficulty: 'Easy', 
-    topic: 'Arrays & Hashing', 
+  {
+    id: 'cq-2',
+    title: 'Two Sum (HashMap O(N) Invariant)',
+    category: 'DSA',
+    difficulty: 'Easy',
+    topic: 'Arrays & Hashing',
     estimatedMinutes: 20,
     colorClass: 'box-blue',
     subtasks: [
@@ -258,12 +276,12 @@ const CURATED_ITEMS = [
       { id: 'st-5', title: 'Verify duplicate edge cases with O(N) runtime', category: 'Review', completed: false }
     ]
   },
-  { 
-    id: 'cq-3', 
-    title: 'DBMS: Transaction Isolation Levels', 
-    category: 'DBMS', 
-    difficulty: 'Medium', 
-    topic: 'Transactions', 
+  {
+    id: 'cq-3',
+    title: 'DBMS: Transaction Isolation Levels',
+    category: 'DBMS',
+    difficulty: 'Medium',
+    topic: 'Transactions',
     estimatedMinutes: 25,
     colorClass: 'box-purple',
     subtasks: [
@@ -271,10 +289,10 @@ const CURATED_ITEMS = [
       { id: 'st-7', title: 'Write 2-sentence summary on Phantom Reads in notes', category: 'Review', completed: false }
     ]
   },
-  { 
-    id: 'cq-4', 
-    title: '15-Minute Flashcards Recall', 
-    category: 'Habit', 
+  {
+    id: 'cq-4',
+    title: '15-Minute Flashcards Recall',
+    category: 'Habit',
     isHabit: true,
     estimatedMinutes: 15,
     colorClass: 'box-amber',
@@ -293,21 +311,28 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
 
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState('DSA');
+  const [customCategory, setCustomCategory] = useState('');
+  const [currentDateKey, setCurrentDateKey] = useState(todayKey);
   const [newEstMinutes, setNewEstMinutes] = useState(30);
   const [newSubtaskCount, setNewSubtaskCount] = useState(0);
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [showCurated, setShowCurated] = useState(false);
-  
+
   // Subtask addition state
   const [addingSubtaskId, setAddingSubtaskId] = useState(null);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskCategory, setNewSubtaskCategory] = useState('Auto');
   const [loadingAiId, setLoadingAiId] = useState(null);
-  
-  // AI Daily Plan Generator Modal state
-  const [showAiModal, setShowAiModal] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  // Automatic daily-plan generation. There is deliberately no always-visible
+  // "generate" button — today's plan builds itself silently when the day is
+  // empty (and not an off-day). `autoGenerating` shows a subtle progress pill
+  // while that happens; `planLoadFailed` flips true only if auto-generation
+  // could not populate the day, which is the sole case that reveals the manual
+  // "Load today's plan" fallback button.
+  const [autoGenerating, setAutoGenerating] = useState(false);
+  const [planLoadFailed, setPlanLoadFailed] = useState(false);
+  const autoGenAttemptedRef = useRef({});
 
   // Off Day status for today
   const [isOffDay, setIsOffDay] = useState(() => {
@@ -327,14 +352,74 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
       } else {
         localStorage.removeItem(`reviser_off_day_${todayKey}`);
       }
-    } catch (_) {}
+    } catch (_) { }
+  };
+
+  // Reads the persisted off-day flag for a given date straight from storage so
+  // the auto-generator never relies on possibly-stale React state.
+  const isOffDayFor = (dateKey) => {
+    try {
+      return localStorage.getItem(`reviser_off_day_${dateKey}`) === 'true';
+    } catch (_) {
+      return false;
+    }
+  };
+
+  // Core generator shared by the silent path and the manual fallback button.
+  // An empty prompt routes the backend to the master daily plan (which always
+  // returns a deterministic fallback even with no Gemini key), so this reliably
+  // fills the day. `replaceTodos` is delete-then-insert, so callers must only
+  // invoke this for a genuinely empty day.
+  const generatePlan = async (dateToLoad, { silent } = { silent: true }) => {
+    setAutoGenerating(true);
+    try {
+      const res = await api.planDailyWithAi('');
+      if (res && Array.isArray(res.tasks) && res.tasks.length > 0) {
+        const dtos = res.tasks.map((t) => mapPlanTaskToDto(t, dateToLoad));
+        const savedList = await api.replaceTodos(dateToLoad, dtos);
+        setTodos(savedList || []);
+        setPlanLoadFailed(false);
+        if (!silent && savedList && savedList.length > 0) {
+          confetti({ particleCount: 40, spread: 60, origin: { y: 0.7 } });
+        }
+        return true;
+      }
+      setPlanLoadFailed(true);
+      return false;
+    } catch (err) {
+      console.error('Daily plan generation failed:', err);
+      setPlanLoadFailed(true);
+      return false;
+    } finally {
+      setAutoGenerating(false);
+    }
+  };
+
+  // Silent, automatic path — runs at most once per date so a background retry
+  // or React strict-mode double-invoke can't double-insert the plan.
+  const runAutoGen = (dateToLoad) => {
+    if (autoGenAttemptedRef.current[dateToLoad]) return;
+    autoGenAttemptedRef.current[dateToLoad] = true;
+    generatePlan(dateToLoad, { silent: true });
+  };
+
+  // Manual "start fresh" for TODAY only. Wipes today's tasks (including any
+  // completed ones) and regenerates the built-in daily routine on demand.
+  // Never touches past days — the whole point is a clean rebuild of today.
+  const handleRebuildToday = async () => {
+    if (!window.confirm("Rebuild today's plan? This clears today's tasks (including completed ones) and generates a fresh plan.")) {
+      return;
+    }
+    autoGenAttemptedRef.current[todayKey] = true; // keep the empty-day auto-gen from racing this
+    await generatePlan(todayKey, { silent: false });
   };
 
   // Load from database
-  const loadTodos = async () => {
+  const loadTodos = async (dateToLoad = currentDateKey) => {
     setLoading(true);
+    let data = [];
     try {
-      const data = await api.getTodos(todayKey);
+      data = await api.getTodos(dateToLoad);
       setTodos(data || []);
     } catch (err) {
       console.error('Error loading todos from database:', err);
@@ -342,11 +427,28 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
     } finally {
       setLoading(false);
     }
+
+    // Auto-build today's plan silently when the day is empty and not an off-day.
+    // Only ever for the real "today" — past/other dates are never auto-filled.
+    if ((!data || data.length === 0) && dateToLoad === todayKey && !isOffDayFor(dateToLoad)) {
+      runAutoGen(dateToLoad);
+    }
   };
 
   useEffect(() => {
-    loadTodos();
-  }, [todayKey]);
+    loadTodos(currentDateKey);
+
+    // Automatically check for 12:00 AM midnight date rollover without requiring manual clicks
+    const midnightInterval = setInterval(() => {
+      const nowKey = new Date().toISOString().split('T')[0];
+      if (nowKey !== currentDateKey) {
+        setCurrentDateKey(nowKey);
+        loadTodos(nowKey);
+      }
+    }, 15000);
+
+    return () => clearInterval(midnightInterval);
+  }, [currentDateKey]);
 
   // Main task toggle (persisted to DB)
   const handleToggle = async (id) => {
@@ -362,6 +464,8 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
           colors: ['#0ea5a4', '#059669', '#d97706', '#7c3aed']
         });
       }
+      // Let the dashboard (mounted but hidden) refresh its streak live.
+      window.dispatchEvent(new CustomEvent('reviser:todos-changed'));
     } catch (err) {
       console.error('Error toggling todo:', err);
     }
@@ -381,6 +485,8 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
           colors: ['#0ea5a4', '#059669', '#d97706', '#7c3aed']
         });
       }
+      // Let the dashboard (mounted but hidden) refresh its streak live.
+      window.dispatchEvent(new CustomEvent('reviser:todos-changed'));
     } catch (err) {
       console.error('Error toggling subtask:', err);
     }
@@ -390,7 +496,7 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
   const handleAddSubtask = async (taskId, parentCat) => {
     if (!newSubtaskTitle.trim()) return;
 
-    const cat = newSubtaskCategory === 'Auto' 
+    const cat = newSubtaskCategory === 'Auto'
       ? detectSubtaskCategory(newSubtaskTitle, parentCat)
       : newSubtaskCategory;
 
@@ -424,33 +530,25 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
     if (!newTitle.trim()) return;
 
     const inputTitle = newTitle.trim();
-    const chosenCat = newCategory;
-    const parsed = parseTaskInput(inputTitle, chosenCat, Number(newSubtaskCount));
+    const finalCat = newCategory === '__custom__' ? (customCategory.trim() || 'Custom') : newCategory;
+    const parsed = parseTaskInput(inputTitle, finalCat, Number(newSubtaskCount));
+    parsed.category = finalCat;
 
     let boxColor = 'box-blue';
-    if (parsed.isHabit || parsed.category === 'Habit') boxColor = 'box-amber';
-    else if (parsed.category === 'DBMS' || parsed.category === 'OS' || parsed.category === 'Core CS') boxColor = 'box-purple';
-    else if (parsed.category === 'Completed') boxColor = 'box-green';
+    if (parsed.isHabit || finalCat === 'Habit') boxColor = 'box-amber';
+    else if (finalCat === 'Core CS' || finalCat === 'DBMS' || finalCat === 'OS') boxColor = 'box-purple';
+    else if (finalCat === 'Workers Den') boxColor = 'box-cyan';
+    else if (finalCat === 'Spring Boot Drill') boxColor = 'box-green';
+    else if (finalCat === 'Applications / Referrals') boxColor = 'box-amber';
+    else if (finalCat === 'Open Source') boxColor = 'box-blue';
 
     let subtasksPayload = (parsed.subtasks || []).map(st => ({
       title: st.title,
       category: st.category || 'Code'
     }));
 
-    // If no explicit subtasks were parsed, automatically generate them with AI
-    if (subtasksPayload.length === 0) {
-      try {
-        const res = await api.generateSubtasks(parsed.parentTitle, parsed.category);
-        if (res && res.subtasks && res.subtasks.length > 0) {
-          subtasksPayload = res.subtasks.map((st, idx) => ({
-            title: st.title || st.name || `Step ${idx + 1}`,
-            category: detectSubtaskCategory(st.title || st.name, parsed.category)
-          }));
-        }
-      } catch (err) {
-        console.warn('Auto subtask generation fallback:', err);
-      }
-    }
+    // Subtasks are optional: only attach the ones the user explicitly typed.
+    // Tasks added without subtasks stay flat — no forced AI breakdown.
 
     try {
       const created = await api.createTodo({
@@ -459,73 +557,15 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
         isHabit: parsed.isHabit,
         estimatedMinutes: Number(newEstMinutes) || 30,
         colorClass: boxColor,
-        date: todayKey,
+        date: currentDateKey,
         subtasks: subtasksPayload
       });
       setTodos(prev => [created, ...prev]);
       setNewTitle('');
+      setCustomCategory('');
       setNewSubtaskCount(0);
     } catch (err) {
       console.error('Failed to create task in DB:', err);
-    }
-  };
-
-  // Generate Full Daily Schedule with AI (persisted directly to DB)
-  const handleGenerateAiPlan = async (promptToUse) => {
-    const text = promptToUse || aiPrompt;
-    if (!text.trim()) return;
-
-    setIsGeneratingAi(true);
-    try {
-      const res = await api.planDailyWithAi(text);
-      if (res && res.tasks && res.tasks.length > 0) {
-        const dtos = res.tasks.map((t) => {
-          let boxColor = 'box-blue';
-          const isHabit = t.category === 'habit' || t.taskType === 'streak' || t.title.toLowerCase().includes('rope') || t.title.toLowerCase().includes('gym');
-          if (isHabit) boxColor = 'box-amber';
-          else if (t.category === 'os_dbms' || t.category === 'recap') boxColor = 'box-purple';
-          else if (t.category === 'revision') boxColor = 'box-green';
-
-          let subtasks = [];
-          if (t.subtasks && Array.isArray(t.subtasks)) {
-            subtasks = t.subtasks.map((st, sidx) => ({
-              title: st.title || st.name || `Subtask ${sidx + 1}`,
-              category: detectSubtaskCategory(st.title || st.name, isHabit ? 'Habit' : 'DSA')
-            }));
-          } else {
-            const auto = parseTaskInput(t.title + " " + (t.description || ''), isHabit ? 'Habit' : 'DSA');
-            subtasks = (auto.subtasks || []).map(st => ({
-              title: st.title,
-              category: st.category
-            }));
-          }
-
-          return {
-            title: t.title,
-            category: isHabit ? 'Habit' : (t.category === 'os_dbms' ? 'DBMS' : 'DSA'),
-            isHabit: isHabit,
-            estimatedMinutes: t.estimatedMinutes || 30,
-            colorClass: boxColor,
-            date: todayKey,
-            subtasks: subtasks
-          };
-        });
-
-        const savedList = await api.replaceTodos(todayKey, dtos);
-        setTodos(savedList || []);
-        setShowAiModal(false);
-        setAiPrompt('');
-        confetti({
-          particleCount: 40,
-          spread: 60,
-          origin: { y: 0.7 }
-        });
-      }
-    } catch (err) {
-      console.error('Failed to generate AI plan:', err);
-      alert('AI plan generation encountered an issue: ' + err.message);
-    } finally {
-      setIsGeneratingAi(false);
     }
   };
 
@@ -564,22 +604,10 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
     }
   };
 
-  // Clean Rollover / Reset: Calls backend rollover and reloads DB state
-  const handleCleanRollover = async () => {
-    try {
-      const res = await api.rolloverMissed();
-      await loadTodos();
-      alert(`✓ Daily rollover complete: ${res?.rolledOverCount || 0} tasks rolled over, habits reset.`);
-    } catch (err) {
-      console.error('Rollover error:', err);
-      alert('Rollover failed: ' + err.message);
-    }
-  };
-
   const completedCount = todos.filter(t => t.completed).length;
   const totalCount = todos.length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  
+
   const allSubtasks = todos.flatMap(t => t.subtasks || []);
   const completedSubtasks = allSubtasks.filter(st => st.completed).length;
 
@@ -594,15 +622,13 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
   const filteredTodos = todos.filter(t => {
     if (activeFilter === 'PENDING') return !t.completed;
     if (activeFilter === 'COMPLETED') return t.completed;
-    if (activeFilter === 'HABITS') return t.isHabit || t.category === 'Habit';
-    if (activeFilter === 'DSA') return t.category === 'DSA';
-    if (activeFilter === 'THEORY') return t.category === 'OS' || t.category === 'DBMS' || t.category === 'Core CS';
-    return true;
+    if (activeFilter === 'ALL') return true;
+    return (t.category || '').toLowerCase() === activeFilter.toLowerCase();
   });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      
+
       {/* ==================== AI GENERATOR ACTION BAR ==================== */}
       <div style={{
         background: 'var(--bg-card)',
@@ -628,16 +654,74 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
             </span>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button 
-              onClick={() => setShowAiModal(true)}
-              className="btn-primary"
-              style={{ fontSize: '0.8rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              <Wand2 size={13} />
-              <span>AI Generate Daily Plan</span>
-            </button>
-            <button 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              background: 'rgba(52, 199, 89, 0.08)',
+              border: '1px solid rgba(52, 199, 89, 0.25)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.78rem',
+              color: 'var(--color-green)',
+              fontFamily: 'JetBrains Mono',
+              fontWeight: '600'
+            }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--color-green)', display: 'inline-block', boxShadow: '0 0 6px var(--color-green)' }}></span>
+              <span>Auto-rolls at 12:00 AM Midnight</span>
+            </div>
+
+            {/* Silent auto-generation progress — shown instead of any button */}
+            {autoGenerating && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                background: 'var(--color-blue-subtle)',
+                border: '1px solid rgba(14,165,164,0.25)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.78rem',
+                color: 'var(--color-blue)',
+                fontFamily: 'JetBrains Mono',
+                fontWeight: '600'
+              }}>
+                <RefreshCw size={13} className="animate-spin" />
+                <span>Preparing today's plan…</span>
+              </div>
+            )}
+
+            {/* Manual fallback — appears ONLY when today's plan didn't load
+                automatically (empty day, not an off-day, nothing generating). */}
+            {!autoGenerating && !loading && !isOffDay && todos.length === 0 && (
+              <button
+                onClick={() => generatePlan(currentDateKey, { silent: false })}
+                className="btn-primary"
+                style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                title="Today's plan didn't load on its own — build it now"
+              >
+                <Wand2 size={14} />
+                <span>Load today's plan</span>
+              </button>
+            )}
+
+            {/* Manual "start fresh" — visible whenever today already has a plan,
+                so the user can regenerate a clean built-in routine on demand.
+                Today only; past days are never rebuilt. */}
+            {!autoGenerating && !loading && !isOffDay && currentDateKey === todayKey && todos.length > 0 && (
+              <button
+                onClick={handleRebuildToday}
+                className="btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                title="Clear today's tasks and generate a fresh daily plan"
+              >
+                <RefreshCw size={14} />
+                <span>Rebuild today's plan</span>
+              </button>
+            )}
+
+            <button
               onClick={handleToggleOffDay}
               style={{
                 background: isOffDay ? '#FFEDB9' : 'var(--bg-card-inset)',
@@ -657,15 +741,6 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
             >
               <Coffee size={13} color={isOffDay ? '#784d02' : 'var(--color-amber)'} />
               <span>{isOffDay ? 'Off Day Active (Resume)' : 'Take Day Off'}</span>
-            </button>
-            <button 
-              onClick={handleCleanRollover}
-              className="btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-              title="Clean habit reset: preserves streak without backlog duplicates"
-            >
-              <RotateCcw size={13} />
-              <span>Reset Habits</span>
             </button>
           </div>
         </div>
@@ -825,7 +900,7 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
 
           {/* Filters */}
           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-            {['ALL', 'PENDING', 'COMPLETED', 'HABITS', 'DSA', 'THEORY'].map(f => (
+            {['ALL', 'PENDING', 'COMPLETED', 'DSA', 'Core CS', 'Workers Den', 'Spring Boot Drill', 'Applications / Referrals', 'Open Source'].map(f => (
               <button
                 key={f}
                 onClick={() => setActiveFilter(f)}
@@ -849,7 +924,7 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
         </div>
 
         {/* Dynamic Add Form Bar with NLP and Sub-tick Stepper */}
-        <form 
+        <form
           onSubmit={handleAddTask}
           style={{
             padding: '10px 18px',
@@ -874,14 +949,28 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
             className="form-input"
-            style={{ width: '105px', padding: '6px 8px', fontSize: '0.8rem' }}
+            style={{ width: '150px', padding: '6px 8px', fontSize: '0.8rem' }}
           >
             <option value="DSA">DSA</option>
-            <option value="Habit">Habit 🔥</option>
-            <option value="OS">OS</option>
-            <option value="DBMS">DBMS</option>
-            <option value="Project">Project</option>
+            <option value="Core CS">Core CS</option>
+            <option value="Workers Den">Workers Den</option>
+            <option value="Spring Boot Drill">Spring Boot Drill</option>
+            <option value="Applications / Referrals">Applications / Referrals</option>
+            <option value="Open Source">Open Source</option>
+            <option value="__custom__">+ Custom Category</option>
           </select>
+
+          {newCategory === '__custom__' && (
+            <input
+              type="text"
+              placeholder="Custom category..."
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              className="form-input"
+              style={{ width: '150px', padding: '6px 8px', fontSize: '0.8rem' }}
+              required
+            />
+          )}
 
           {/* Sub-tick Count Stepper */}
           <select
@@ -911,9 +1000,26 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
               <RefreshCw size={16} className="animate-spin" />
               <span>Loading schedule from database...</span>
             </div>
+          ) : autoGenerating && todos.length === 0 ? (
+            <div style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.86rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <RefreshCw size={16} className="animate-spin" />
+              <span>Preparing today's plan automatically…</span>
+            </div>
+          ) : todos.length === 0 && !isOffDay ? (
+            <div style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.86rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+              <span>{planLoadFailed ? "Today's plan couldn't load automatically." : "No plan loaded for today yet."}</span>
+              <button
+                onClick={() => generatePlan(currentDateKey, { silent: false })}
+                className="btn-primary"
+                style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+              >
+                <Wand2 size={14} />
+                <span>Load today's plan</span>
+              </button>
+            </div>
           ) : filteredTodos.length === 0 ? (
             <div style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.86rem' }}>
-              No tasks match this filter. Add one above or click "AI Generate Daily Plan"!
+              No tasks match this filter. Add one above!
             </div>
           ) : (
             filteredTodos.map((todo) => {
@@ -1048,7 +1154,7 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
                       marginTop: '6px'
                     }}>
                       {/* Dynamic Colorful Green Progress Bar for Subtasks */}
-                      <div 
+                      <div
                         role="progressbar"
                         aria-valuenow={Math.round((subDoneCount / subtasks.length) * 100)}
                         aria-valuemin={0}
@@ -1206,16 +1312,16 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
                         <option value="Review">Review 🟩</option>
                       </select>
 
-                      <button 
-                        onClick={() => handleAddSubtask(todo.id, todo.category)} 
-                        className="btn-primary" 
+                      <button
+                        onClick={() => handleAddSubtask(todo.id, todo.category)}
+                        className="btn-primary"
                         style={{ padding: '3px 8px', fontSize: '0.74rem' }}
                       >
                         Add
                       </button>
-                      <button 
-                        onClick={() => { setAddingSubtaskId(null); setNewSubtaskTitle(''); setNewSubtaskCategory('Auto'); }} 
-                        className="btn-secondary" 
+                      <button
+                        onClick={() => { setAddingSubtaskId(null); setNewSubtaskTitle(''); setNewSubtaskCategory('Auto'); }}
+                        className="btn-secondary"
                         style={{ padding: '3px 6px', fontSize: '0.74rem' }}
                       >
                         <X size={11} />
@@ -1228,79 +1334,6 @@ export default function DailyTodoList({ onStartReview, onNavigateToChat, onNavig
           )}
         </div>
       </div>
-
-      {/* ==================== AI GENERATE DAY MODAL ==================== */}
-      {showAiModal && (
-        <Modal
-          onClose={() => setShowAiModal(false)}
-          icon={Wand2}
-          title="AI Dynamic Daily Todo Generator"
-          maxWidth={560}
-          footer={
-            <>
-              <Button variant="secondary" onClick={() => setShowAiModal(false)} style={{ fontSize: '0.84rem' }}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => handleGenerateAiPlan(aiPrompt)}
-                disabled={!aiPrompt.trim()}
-                loading={isGeneratingAi}
-                icon={Sparkles}
-                style={{ fontSize: '0.84rem' }}
-              >
-                {isGeneratingAi ? 'Generating Schedule...' : 'Generate Schedule'}
-              </Button>
-            </>
-          }
-        >
-          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
-              Describe your goals for today in plain English. The AI will build structured tasks and split repetitive habits into categorized sub-ticks.
-            </p>
-
-            <textarea
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="e.g. Morning warm-up routine, 2 Java LeetCode problems (Two Pointers), and a DBMS Transaction Isolation Levels lecture..."
-              rows={4}
-              className="form-input"
-              style={{ width: '100%', padding: '10px 12px', fontSize: '0.86rem', resize: 'vertical' }}
-              autoFocus
-            />
-
-            <div>
-              <div className="mono-label" style={{ color: 'var(--text-dim)', marginBottom: '6px' }}>
-                QUICK PRESETS (1-CLICK):
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {PRESET_PLANS.map((preset, pidx) => (
-                  <button
-                    key={pidx}
-                    onClick={() => handleGenerateAiPlan(preset.prompt)}
-                    disabled={isGeneratingAi}
-                    className="btn-secondary"
-                    style={{
-                      textAlign: 'left',
-                      padding: '8px 12px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '0.8rem'
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: '600', color: 'var(--text-serif-title)' }}>{preset.title}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '2px' }}>{preset.prompt}</div>
-                    </div>
-                    <ArrowRight size={14} color="var(--color-blue)" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }

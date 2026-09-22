@@ -18,6 +18,11 @@ public class MonthlyGoalRequestDto {
 
     private Object aiAnalysis;
 
+    private String status; // "DRAFT" or "ACCEPTED"
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+
     public String getMonth() { return month; }
     public void setMonth(String month) { this.month = month; }
 

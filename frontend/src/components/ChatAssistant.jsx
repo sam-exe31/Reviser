@@ -1,21 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Send, 
-  Sparkles, 
-  Check, 
-  Clock, 
-  Tag, 
-  CheckCircle2, 
-  Brain, 
-  Target, 
-  BookOpen, 
-  Code, 
-  Zap, 
-  Star, 
-  Layers, 
-  RotateCcw, 
-  HelpCircle, 
-  Terminal, 
+import {
+  Send,
+  Sparkles,
+  Check,
+  Clock,
+  Tag,
+  CheckCircle2,
+  Brain,
+  Target,
+  BookOpen,
+  Code,
+  Zap,
+  Star,
+  Layers,
+  RotateCcw,
+  HelpCircle,
+  Terminal,
   Command,
   Copy,
   X
@@ -26,7 +26,7 @@ import { api } from '../services/api';
 const initialWelcome = {
   id: 'init-1',
   sender: 'bot',
-  text: "### 💬 Reviser AI Mentor & Engineering Assistant\n\nI can help you with:\n\n* ☕ **DSA & Algorithms in Java (Default)**: Ask for any problem explanation (e.g. *'What is problem 56'*, *'Explain LeetCode 67'*, *'How to solve 3Sum'*).\n* 💻 **Solution & Code Review**: Paste your Java/DSA code for debugging, complexity analysis, and edge case checks.\n* ⚙️ **Core CS Topics**: Ask about **Operating Systems (OS)**, **DBMS**, **Computer Networks**, and **System Design**.\n* ⚡ **Log with `/solve <number>`**: Type `/solve 56` (or click the tag) to rate your confidence (1–5) and schedule SM-2 spaced repetition.",
+  text: "### 💬 Reviser AI Mentor & Engineering Assistant\n\nI can help you with:\n\n* ☕ **DSA, Algorithms & Spring Boot**: Ask any engineering questions, code reviews, or architectural discussions.\n* ⚙️ **Core CS Topics**: Deep-dives on **Operating Systems (OS)**, **DBMS**, **Computer Networks**, and **System Design**.\n* ⚡ **Log Solved Problems with `/solved <number>`**: Type `/solved 56` to inspect official LeetCode stats, fill your 4-line journal (Trigger, Template, Variant, Failure), and schedule SM-2 spaced repetition.",
   timestamp: new Date()
 };
 
@@ -79,7 +79,7 @@ const SLASH_COMMANDS = [
 function highlightLine(line) {
   // Matches tokens: comments, strings, annotations, numbers, words
   const tokenRegex = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|--[^\n]*|"(?:\\.|[^"\\])*"|'[^']*'|@\w+|\b\d+(?:\.\d+)?(?:[fFdDlL])?\b|[a-zA-Z_$][a-zA-Z0-9_$]*|[^\s\w])/g;
-  
+
   const keywords = new Set([
     'public', 'private', 'protected', 'static', 'final', 'abstract', 'synchronized', 'volatile',
     'transient', 'native', 'strictfp', 'class', 'interface', 'enum', 'record', 'extends', 'implements',
@@ -158,7 +158,7 @@ function CodeBlock({ language, code }) {
       navigator.clipboard.writeText(cleanCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (_) {}
+    } catch (_) { }
   };
 
   return (
@@ -269,7 +269,7 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
   const [loading, setLoading] = useState(false);
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  
+
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -298,7 +298,7 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
                 if (parsed && parsed.dismissed) {
                   detected = null;
                 }
-              } catch (_) {}
+              } catch (_) { }
             }
 
             return {
@@ -335,9 +335,9 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
   const filteredCommands = SLASH_COMMANDS.filter(cmd => {
     if (!input.startsWith('/')) return false;
     const query = input.toLowerCase();
-    return cmd.command.toLowerCase().startsWith(query) || 
-           cmd.syntax.toLowerCase().includes(query) ||
-           cmd.description.toLowerCase().includes(query);
+    return cmd.command.toLowerCase().startsWith(query) ||
+      cmd.syntax.toLowerCase().includes(query) ||
+      cmd.description.toLowerCase().includes(query);
   });
 
   // Track if slash menu should be open
@@ -464,7 +464,29 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
 
     try {
       const response = await api.converseWithAi(query.trim(), newHistory, activeMode);
-      
+
+      // Fallback: If user explicitly typed /solved <number> or /solve <number> and detectedProblem is missing info
+      const solveMatch = query.trim().match(/^\/solved?\s+(\d{1,5})/i);
+      if (solveMatch && (!response.detectedProblem || !response.detectedProblem.problemTitle)) {
+        try {
+          const lcLookup = await api.lookupLeetCode(solveMatch[1]);
+          if (lcLookup && lcLookup.found) {
+            response.detectedProblem = {
+              problemNumber: Number(solveMatch[1]),
+              problemTitle: lcLookup.title,
+              platform: 'LeetCode',
+              difficulty: lcLookup.difficulty || 'Medium',
+              pattern: lcLookup.pattern || 'General DSA',
+              tags: lcLookup.tags || '',
+              description: lcLookup.description || null,
+              confidence: 4
+            };
+          }
+        } catch (lcErr) {
+          console.warn('Frontend direct LeetCode lookup fallback error:', lcErr);
+        }
+      }
+
       const botPayload = {
         sender: 'bot',
         text: response.reply || "I've processed your message. Let me know what you'd like to work on!",
@@ -502,6 +524,11 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
             neededHint: false,
             rememberedPattern: true,
             couldExplainSolution: true,
+            journalTrigger: '',
+            journalTemplate: response.detectedProblem.pattern || '',
+            journalVariant: '',
+            journalFailure: '',
+            customDescription: '',
             notes: ''
           }
         }));
@@ -513,7 +540,7 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
       let savedFallback = null;
       try {
         savedFallback = await api.saveChatMessage({ sender: 'bot', text: fallbackText });
-      } catch (e) {}
+      } catch (e) { }
 
       setMessages(prev => [
         ...prev,
@@ -549,6 +576,16 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
     }));
   };
 
+  const handleFieldChange = (msgId, field, value) => {
+    setProblemCardStates(prev => ({
+      ...prev,
+      [msgId]: {
+        ...(prev[msgId] || { confidence: 4, solvedWithoutHelp: true, rememberedPattern: true, couldExplainSolution: true, notes: '' }),
+        [field]: value
+      }
+    }));
+  };
+
   const handleCheckboxToggle = (msgId, field) => {
     setProblemCardStates(prev => {
       const current = prev[msgId] || { confidence: 4, solvedWithoutHelp: true, neededHint: false, rememberedPattern: true, couldExplainSolution: true, notes: '' };
@@ -580,12 +617,28 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
       else diff = 'Medium';
     }
 
+    const journalText = [
+      '=== 4-Line DSA Journal ===',
+      `• Trigger: ${cardState.journalTrigger?.trim() || 'Recognized pattern in problem statement'}`,
+      `• Template: ${cardState.journalTemplate?.trim() || (detectedData.pattern || 'Standard DSA Template')}`,
+      `• Variant: ${cardState.journalVariant?.trim() || 'Standard problem formulation'}`,
+      `• Failure: ${cardState.journalFailure?.trim() || 'First-pass clean / none'}`
+    ].join('\n');
+
+    const descSection = (detectedData.description || cardState.customDescription)
+      ? `=== Description ===\n${(detectedData.description || cardState.customDescription).trim()}\n\n`
+      : '';
+
+    const addNotes = cardState.notes?.trim() ? `\n=== Additional Notes ===\n${cardState.notes.trim()}` : '';
+    const fullNotes = `${descSection}${journalText}${addNotes}`;
+
     try {
       const problemPayload = {
         title: detectedData.problemTitle || 'Coding Problem',
         platform: detectedData.platform || 'LeetCode',
         difficulty: diff,
-        pattern: detectedData.pattern || detectedData.topic || 'General DSA'
+        pattern: detectedData.pattern || detectedData.topic || 'General DSA',
+        notes: fullNotes
       };
 
       const created = await api.createProblem(problemPayload);
@@ -597,7 +650,7 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
         neededHint: cardState.neededHint ?? false,
         rememberedPattern: cardState.rememberedPattern ?? true,
         couldExplainSolution: cardState.couldExplainSolution ?? true,
-        notes: cardState.notes || `Initial solve rating via AI Assistant on ${new Date().toLocaleDateString()}`
+        notes: fullNotes
       });
 
       // Persist card confirmation & rating to PostgreSQL
@@ -662,10 +715,10 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
         {lines.map((line, idx) => {
           if (line.startsWith('### ')) {
             return (
-              <h4 key={idx} className="font-serif" style={{ 
-                fontSize: '1.1rem', 
-                color: 'var(--text-serif-title)', 
-                margin: '14px 0 6px 0', 
+              <h4 key={idx} className="font-serif" style={{
+                fontSize: '1.1rem',
+                color: 'var(--text-serif-title)',
+                margin: '14px 0 6px 0',
                 fontWeight: '600',
                 display: 'flex',
                 alignItems: 'center',
@@ -677,10 +730,10 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
           }
           if (line.startsWith('## ')) {
             return (
-              <h3 key={idx} className="font-serif" style={{ 
-                fontSize: '1.25rem', 
-                color: 'var(--text-serif-title)', 
-                margin: '16px 0 8px 0', 
+              <h3 key={idx} className="font-serif" style={{
+                fontSize: '1.25rem',
+                color: 'var(--text-serif-title)',
+                margin: '16px 0 8px 0',
                 fontWeight: '600',
                 letterSpacing: '-0.2px'
               }}>
@@ -754,11 +807,11 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
       }
       if (part.startsWith('`') && part.endsWith('`')) {
         return (
-          <code key={i} style={{ 
-            backgroundColor: 'var(--bg-card-inset)', 
-            padding: '2px 7px', 
-            borderRadius: '5px', 
-            color: 'var(--accent-cyan)', 
+          <code key={i} style={{
+            backgroundColor: 'var(--bg-card-inset)',
+            padding: '2px 7px',
+            borderRadius: '5px',
+            color: 'var(--accent-cyan)',
             fontSize: '0.86em',
             fontFamily: 'var(--font-mono)',
             border: '1px solid var(--border-main)'
@@ -823,7 +876,7 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
           </button>
 
           {onNavigateToGoals && (
-            <button 
+            <button
               onClick={onNavigateToGoals}
               className="btn-secondary"
               style={{ fontSize: '0.82rem', padding: '6px 14px' }}
@@ -889,38 +942,11 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
                   boxShadow: 'var(--shadow-card)'
                 }}>
                   {renderFormattedMarkdown(msg.text)}
-
-                  {/* Quick Action Solve Tag for Normal Problem Chat */}
-                  {!isUser && !msg.detectedProblem && (
-                    <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-main)', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <button
-                        onClick={() => {
-                          const cmd = msg.suggestedSolveCommand || '/solve 56';
-                          handleSend(cmd);
-                        }}
-                        className="btn-secondary"
-                        style={{
-                          fontSize: '0.78rem',
-                          padding: '4px 12px',
-                          borderRadius: 'var(--radius-full)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          color: 'var(--accent-cyan)',
-                          borderColor: 'rgba(56, 189, 248, 0.35)',
-                          backgroundColor: 'rgba(56, 189, 248, 0.08)'
-                        }}
-                      >
-                        <Zap size={13} color="var(--accent-cyan)" />
-                        <span>{msg.suggestedSolveCommand ? `Log & Rate ${msg.suggestedSolveCommand}` : '⚡ /solve this problem'}</span>
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* Detected Problem Action Card with Notes & Rating & SM-2 Ingestion */}
                 {msg.detectedProblem && !msg.confirmed && (
-                  <div className="claude-artifact animate-scale-in" style={{ 
+                  <div className="claude-artifact animate-scale-in" style={{
                     marginTop: '8px',
                     borderColor: 'rgba(56, 189, 248, 0.35)',
                     boxShadow: 'var(--shadow-popover)',
@@ -943,7 +969,7 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
                           borderRadius: 'var(--radius-sm)',
                           textTransform: 'uppercase'
                         }}>
-                          {msg.detectedProblem.platform || 'LeetCode'}
+                          {msg.detectedProblem.platform || 'LeetCode'} {msg.detectedProblem.problemNumber ? `#${msg.detectedProblem.problemNumber}` : ''}
                         </div>
                         <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-serif-title)' }}>
                           {msg.detectedProblem.problemTitle || 'Identified Problem'}
@@ -982,37 +1008,57 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
 
                     {/* Body Details */}
                     <div className="claude-artifact-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '16px 20px' }}>
-                      
-                      {/* Intuition & Complexity Badges */}
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr auto',
-                        gap: '12px',
-                        backgroundColor: 'var(--bg-card-inset)',
-                        padding: '12px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--border-main)'
-                      }}>
-                        <div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            Key Intuition & Pattern
+
+                      {/* LeetCode Description / Constraints */}
+                      {msg.detectedProblem.description ? (
+                        <div style={{
+                          backgroundColor: 'var(--bg-card-inset)',
+                          padding: '12px 14px',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--border-main)',
+                          maxHeight: '180px',
+                          overflowY: 'auto'
+                        }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                            Official Problem Description
                           </div>
-                          <div style={{ fontSize: '0.86rem', color: 'var(--text-main)', marginTop: '2px', lineHeight: '1.4' }}>
-                            {msg.detectedProblem.keyIntuition || 'Recognize optimal data structure to reduce time and space complexity.'}
+                          <div style={{ fontSize: '0.84rem', color: 'var(--text-main)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>
+                            {msg.detectedProblem.description}
                           </div>
                         </div>
-
-                        {(msg.detectedProblem.timeComplexity || msg.detectedProblem.spaceComplexity) && (
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '700', textTransform: 'uppercase' }}>
-                              Optimal Big-O
-                            </div>
-                            <div style={{ fontSize: '0.82rem', color: 'var(--accent-emerald)', fontWeight: '700', marginTop: '2px' }}>
-                              {msg.detectedProblem.timeComplexity || 'O(N)'} / {msg.detectedProblem.spaceComplexity || 'O(1)'}
-                            </div>
+                      ) : (
+                        <div style={{
+                          backgroundColor: 'rgba(234, 179, 8, 0.08)',
+                          padding: '12px 14px',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid rgba(234, 179, 8, 0.3)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px'
+                        }}>
+                          <div style={{ fontSize: '0.75rem', color: '#eab308', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            ⚠️ Description could not be fetched automatically. Please paste description below:
                           </div>
-                        )}
-                      </div>
+                          <textarea
+                            placeholder="Paste problem description / constraints / examples here..."
+                            value={cardState.customDescription || ''}
+                            onChange={(e) => handleFieldChange(msg.id, 'customDescription', e.target.value)}
+                            rows={3}
+                            style={{
+                              width: '100%',
+                              backgroundColor: 'var(--bg-card)',
+                              border: '1px solid var(--border-main)',
+                              borderRadius: 'var(--radius-sm)',
+                              padding: '8px 10px',
+                              color: 'var(--text-main)',
+                              fontSize: '0.82rem',
+                              outline: 'none',
+                              fontFamily: 'inherit'
+                            }}
+                          />
+                        </div>
+                      )}
+
                       {/* Metadata Chips */}
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{
@@ -1024,7 +1070,7 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
                           color: 'var(--text-muted)',
                           fontWeight: '600'
                         }}>
-                          Topic: <strong style={{ color: 'var(--text-main)' }}>{msg.detectedProblem.topic || 'General'}</strong>
+                          Tags: <strong style={{ color: 'var(--text-main)' }}>{msg.detectedProblem.tags || msg.detectedProblem.pattern || 'General DSA'}</strong>
                         </span>
                         <span style={{
                           fontSize: '0.75rem',
@@ -1046,8 +1092,81 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
                           color: 'var(--accent-emerald)',
                           fontWeight: '700'
                         }}>
-                          SM-2 Auto-Schedule Ready
+                          SM-2 Spaced Repetition Ready
                         </span>
+                      </div>
+
+                      {/* 4-Line DSA Journal Form */}
+                      <div style={{
+                        background: 'var(--bg-card-inset)',
+                        padding: '14px 16px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-main)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px'
+                      }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: '800', color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <BookOpen size={14} /> 4-Line DSA Journal (Roadmap Spec)
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
+                          <div>
+                            <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                              1. Trigger <span style={{ fontWeight: '400', color: 'var(--text-dim)' }}>(statement signal)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={cardState.journalTrigger || ''}
+                              onChange={(e) => handleFieldChange(msg.id, 'journalTrigger', e.target.value)}
+                              placeholder="e.g. At most k elements / sorted order"
+                              className="form-input"
+                              style={{ width: '100%', fontSize: '0.82rem', padding: '6px 10px' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                              2. Template <span style={{ fontWeight: '400', color: 'var(--text-dim)' }}>(pattern name)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={cardState.journalTemplate || ''}
+                              onChange={(e) => handleFieldChange(msg.id, 'journalTemplate', e.target.value)}
+                              placeholder="e.g. Sliding Window / Monotonic Stack"
+                              className="form-input"
+                              style={{ width: '100%', fontSize: '0.82rem', padding: '6px 10px' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                              3. Variant <span style={{ fontWeight: '400', color: 'var(--text-dim)' }}>(how it deviated)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={cardState.journalVariant || ''}
+                              onChange={(e) => handleFieldChange(msg.id, 'journalVariant', e.target.value)}
+                              placeholder="e.g. Shrink condition needed count = 0"
+                              className="form-input"
+                              style={{ width: '100%', fontSize: '0.82rem', padding: '6px 10px' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                              4. Failure <span style={{ fontWeight: '400', color: 'var(--text-dim)' }}>(what broke on 1st run)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={cardState.journalFailure || ''}
+                              onChange={(e) => handleFieldChange(msg.id, 'journalFailure', e.target.value)}
+                              placeholder="e.g. Off-by-one / integer overflow / empty string"
+                              className="form-input"
+                              style={{ width: '100%', fontSize: '0.82rem', padding: '6px 10px' }}
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       {/* Interactive Confidence / Recall Rating (1 to 5) */}
@@ -1095,12 +1214,12 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
                       {/* Notes / Reflections Input */}
                       <div>
                         <div style={{ fontSize: '0.76rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <BookOpen size={13} color="var(--accent-cyan)" /> Personal Notes & Key Edge Cases (Optional)
+                          <BookOpen size={13} color="var(--accent-cyan)" /> Additional Notes & Key Edge Cases (Optional)
                         </div>
                         <textarea
                           value={cardState.notes || ''}
                           onChange={(e) => handleNotesChange(msg.id, e.target.value)}
-                          placeholder="Write down tricky corner cases, personal notes, or key intuition reminders before rating & saving..."
+                          placeholder="Write down tricky corner cases or key intuition reminders..."
                           rows={2}
                           style={{
                             width: '100%',
@@ -1120,27 +1239,27 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
                       {/* Quick Self-Assessment Checkboxes */}
                       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '0.78rem', color: 'var(--text-muted)', paddingTop: '2px' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                          <input 
-                            type="checkbox" 
-                            checked={cardState.solvedWithoutHelp ?? true} 
+                          <input
+                            type="checkbox"
+                            checked={cardState.solvedWithoutHelp ?? true}
                             onChange={() => handleCheckboxToggle(msg.id, 'solvedWithoutHelp')}
                             style={{ accentColor: 'var(--accent-cyan)', cursor: 'pointer' }}
                           />
                           <span>Solved without help</span>
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                          <input 
-                            type="checkbox" 
-                            checked={cardState.rememberedPattern ?? true} 
+                          <input
+                            type="checkbox"
+                            checked={cardState.rememberedPattern ?? true}
                             onChange={() => handleCheckboxToggle(msg.id, 'rememberedPattern')}
                             style={{ accentColor: 'var(--accent-purple)', cursor: 'pointer' }}
                           />
                           <span>Remembered core pattern</span>
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                          <input 
-                            type="checkbox" 
-                            checked={cardState.couldExplainSolution ?? true} 
+                          <input
+                            type="checkbox"
+                            checked={cardState.couldExplainSolution ?? true}
                             onChange={() => handleCheckboxToggle(msg.id, 'couldExplainSolution')}
                             style={{ accentColor: 'var(--accent-emerald)', cursor: 'pointer' }}
                           />
@@ -1274,7 +1393,7 @@ export default function ChatAssistant({ onTaskLogged, onNavigateToGoals, onOpenR
       }}>
         {/* Floating Slash Command Autocomplete Dropdown */}
         {showSlashMenu && filteredCommands.length > 0 && (
-          <div 
+          <div
             className="animate-scale-in"
             style={{
               position: 'absolute',

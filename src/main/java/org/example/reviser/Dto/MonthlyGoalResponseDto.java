@@ -12,6 +12,7 @@ public class MonthlyGoalResponseDto {
     private List<GoalTargetDto> targets;
     private String userGoalPrompt;
     private Object aiAnalysis;
+    private String status = "ACCEPTED";
 
     public MonthlyGoalResponseDto() {}
 
@@ -36,6 +37,19 @@ public class MonthlyGoalResponseDto {
         this.aiAnalysis = aiAnalysis;
     }
 
+    public MonthlyGoalResponseDto(Long id, String month, LocalDateTime createdAt,
+                                   List<String> priorityOrder, List<GoalTargetDto> targets,
+                                   String userGoalPrompt, Object aiAnalysis, String status) {
+        this.id = id;
+        this.month = month;
+        this.createdAt = createdAt;
+        this.priorityOrder = priorityOrder;
+        this.targets = targets;
+        this.userGoalPrompt = userGoalPrompt;
+        this.aiAnalysis = aiAnalysis;
+        this.status = status;
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -56,4 +70,7 @@ public class MonthlyGoalResponseDto {
 
     public Object getAiAnalysis() { return aiAnalysis; }
     public void setAiAnalysis(Object aiAnalysis) { this.aiAnalysis = aiAnalysis; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 }

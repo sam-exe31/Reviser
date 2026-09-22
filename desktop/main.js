@@ -82,6 +82,53 @@ function checkBackendHealth() {
   });
 }
 
+// Load desktop/.env (git-ignored) so the Gemini API key and any local overrides
+// can be supplied without committing secrets. Tiny hand-parser — no dotenv dependency.
+function loadDesktopEnv() {
+  const out = {};
+  // Search order lets the SAME git-ignored .env work in dev *and* in the
+  // packaged app. In dev, __dirname is desktop/. When packaged, __dirname is
+  // inside app.asar (read-only, not user-writable), so also look next to the
+  // .exe and in the resources/ folder — both are plain folders the user can
+  // drop a .env into. First match wins.
+  const candidates = [path.join(__dirname, '.env')];
+  try {
+    if (app.isPackaged) {
+      candidates.push(path.join(path.dirname(app.getPath('exe')), '.env'));
+      if (process.resourcesPath) {
+        candidates.push(path.join(process.resourcesPath, '.env'));
+      }
+    }
+  } catch (_) { /* app not ready — dev candidate still applies */ }
+
+  const envPath = candidates.find((p) => {
+    try { return fs.existsSync(p); } catch (_) { return false; }
+  });
+  if (!envPath) return out;
+
+  try {
+    const raw = fs.readFileSync(envPath, 'utf8');
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq === -1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      let value = trimmed.slice(eq + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      if (key) out[key] = value;
+    }
+    // Log the source path only (never the values) so key loading is debuggable.
+    console.log('[Electron] Loaded desktop env from:', envPath);
+  } catch (e) {
+    console.error('[Electron] Failed to read .env:', e);
+  }
+  return out;
+}
+
 function startBackend() {
   console.log('[Electron] Starting Spring Boot backend process...');
 
@@ -94,12 +141,23 @@ function startBackend() {
     jarPath = path.join(__dirname, '../target/Reviser-0.0.1-SNAPSHOT.jar');
   }
 
+  // Local secrets (Gemini key, optional model + datasource overrides) come from
+  // desktop/.env. Spread it first so an explicit process.env value still wins.
+  const fileEnv = loadDesktopEnv();
+
   const env = {
+    ...fileEnv,
     ...process.env,
-    SPRING_DATASOURCE_URL: process.env.SPRING_DATASOURCE_URL || 'jdbc:postgresql://localhost:5432/Reviser',
-    SPRING_DATASOURCE_USERNAME: process.env.SPRING_DATASOURCE_USERNAME || 'postgres',
-    SPRING_DATASOURCE_PASSWORD: process.env.SPRING_DATASOURCE_PASSWORD || 'postgresql'
+    SPRING_DATASOURCE_URL: process.env.SPRING_DATASOURCE_URL || fileEnv.SPRING_DATASOURCE_URL || 'jdbc:postgresql://localhost:5432/Reviser',
+    SPRING_DATASOURCE_USERNAME: process.env.SPRING_DATASOURCE_USERNAME || fileEnv.SPRING_DATASOURCE_USERNAME || 'postgres',
+    SPRING_DATASOURCE_PASSWORD: process.env.SPRING_DATASOURCE_PASSWORD || fileEnv.SPRING_DATASOURCE_PASSWORD || 'postgresql'
   };
+
+  if (env.GEMINI_API_KEY) {
+    console.log('[Electron] Gemini API key loaded — AI features enabled.');
+  } else {
+    console.log('[Electron] No GEMINI_API_KEY in desktop/.env or environment — chat will use the offline fallback.');
+  }
 
   let logFd = 'ignore';
   try {
@@ -182,7 +240,11 @@ function createMainWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      // Keep the renderer fully active even when unfocused. Throttling can leave
+      // input hit-testing in a stale state, contributing to dead clicks until a
+      // resize wakes the compositor.
+      backgroundThrottling: false
     }
   });
 
@@ -222,6 +284,22 @@ function createMainWindow() {
       splashWindow = null;
     }
     mainWindow.show();
+    mainWindow.focus();
+
+    // Windows/Electron sometimes paints the first frame before input
+    // hit-testing is attached, so clicks in inputs (chat box, etc.) do nothing
+    // until the window is manually resized. Nudge the width by 1px and restore
+    // it to force a compositor reflow that re-attaches input handling at launch.
+    try {
+      const b = mainWindow.getBounds();
+      mainWindow.setBounds({ ...b, width: b.width + 1 });
+      setTimeout(() => {
+        try {
+          mainWindow.setBounds(b);
+          mainWindow.webContents.focus();
+        } catch (_) {}
+      }, 80);
+    } catch (_) {}
   });
 
   mainWindow.on('closed', () => {
@@ -275,7 +353,7 @@ function killBackend() {
   if (backendProcess) {
     console.log('[Electron] Terminating backend process...');
     if (process.platform === 'win32') {
-      exec(`taskkill /pid ${backendProcess.pid} /T /F`, { windowsHide: true }, () => {});
+      exec(`taskkill /pid ${backendProcess.pid} /T /F`, { windowsHide: true }, () => { });
     } else {
       backendProcess.kill('SIGTERM');
     }

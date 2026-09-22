@@ -18,6 +18,8 @@ public class ChatParseResponseDto {
     private String status;      // "solved", "attempted", "reviewed"
     private Integer timeTakenMin;
     private Integer confidence; // 1-5
+    private String description;
+    private String tags;
 
     public ChatParseResponseDto() {}
 
@@ -69,4 +71,10 @@ public class ChatParseResponseDto {
 
     public Integer getConfidence() { return confidence; }
     public void setConfidence(Integer confidence) { this.confidence = confidence; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public String getTags() { return tags; }
+    public void setTags(String tags) { this.tags = tags; }
 }

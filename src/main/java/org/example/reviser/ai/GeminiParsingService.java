@@ -25,6 +25,7 @@ public class GeminiParsingService {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final org.example.reviser.problem.LeetCodeService leetCodeService;
 
     @Value("${gemini.api.key:}")
     private String apiKey;
@@ -44,11 +45,12 @@ public class GeminiParsingService {
         return baseUrl;
     }
 
-    public GeminiParsingService() {
+    public GeminiParsingService(org.example.reviser.problem.LeetCodeService leetCodeService) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(8000);
         factory.setReadTimeout(45000);
         this.restTemplate = new RestTemplate(factory);
+        this.leetCodeService = leetCodeService;
     }
 
     // Curated catalog of standard popular LeetCode problems for fast local lookup
@@ -235,43 +237,104 @@ public class GeminiParsingService {
         String queryForDetection = isSolveCmd ? stripSolveCommandPrefix(trimmed) : trimmed;
         if (queryForDetection.isEmpty()) queryForDetection = trimmed;
 
+        ChatParseResponseDto detectedProblem = null;
+        Map<String, Object> lcInfo = null;
 
-        ChatParseResponseDto detectedProblem = parseUserMessage(queryForDetection);
-        if (detectedProblem != null && detectedProblem.isParsed() && detectedProblem.getProblemTitle() != null) {
-            result.put("detectedProblem", detectedProblem);
-            if (detectedProblem.getProblemNumber() != null) {
-                result.put("suggestedSolveCommand", "/solve " + detectedProblem.getProblemNumber());
+        // ONLY trigger problem detection & logging card when user explicitly types /solved or /solve
+        if (isSolveCmd) {
+            Pattern numPat = Pattern.compile("(\\b\\d{1,5}\\b)");
+            Matcher numMatcher = numPat.matcher(queryForDetection);
+            String probNum = numMatcher.find() ? numMatcher.group(1) : null;
+
+            if (probNum != null) {
+                lcInfo = leetCodeService.fetchProblemByNumber(probNum);
+                if (lcInfo != null && Boolean.TRUE.equals(lcInfo.get("found"))) {
+                    detectedProblem = new ChatParseResponseDto();
+                    detectedProblem.setParsed(true);
+                    detectedProblem.setPlatform("LeetCode");
+                    try {
+                        detectedProblem.setProblemNumber(Integer.parseInt(probNum));
+                    } catch (Exception e) {
+                        detectedProblem.setProblemNumber(null);
+                    }
+                    detectedProblem.setProblemTitle((String) lcInfo.get("title"));
+                    detectedProblem.setDifficulty((String) lcInfo.get("difficulty"));
+                    detectedProblem.setPattern((String) lcInfo.get("pattern"));
+                    detectedProblem.setKeyIntuition((String) lcInfo.get("description"));
+                    detectedProblem.setDescription((String) lcInfo.get("description"));
+                    // LeetCodeService returns "topics" as a List; join it into the
+                    // DTO's tags String (there is no "tags" key, so the old cast was
+                    // always null).
+                    Object topicsObj = lcInfo.get("topics");
+                    if (topicsObj instanceof List<?> topicList && !topicList.isEmpty()) {
+                        StringBuilder tagSb = new StringBuilder();
+                        for (Object t : topicList) {
+                            if (tagSb.length() > 0) tagSb.append(", ");
+                            tagSb.append(String.valueOf(t));
+                        }
+                        detectedProblem.setTags(tagSb.toString());
+                    }
+                    detectedProblem.setConfidence(4);
+                }
+            }
+
+            if (detectedProblem == null) {
+                detectedProblem = parseUserMessage(queryForDetection);
+            }
+
+            if (detectedProblem != null && detectedProblem.isParsed() && detectedProblem.getProblemTitle() != null) {
+                result.put("detectedProblem", detectedProblem);
+                if (detectedProblem.getProblemNumber() != null) {
+                    result.put("suggestedSolveCommand", "/solved " + detectedProblem.getProblemNumber());
+                }
             }
         }
 
         if (apiKey != null && !apiKey.trim().isEmpty()) {
             try {
                 String systemInstruction = """
-                        You are Reviser's premier AI Mentor & Comprehensive Engineering Assistant.
-                        Communicate conversationally, warmly, and thoroughly using clean, beautiful GitHub Markdown.
-                        
-                        CORE DIRECTIVES:
-                        1. **DSA & Algorithmic Problem Queries** (e.g. "what is 56 problem", "find 56 of leetcode", "/solve 56", "/solved 56", "explain 67", "Merge Intervals", "3Sum"):
-                           - Always start with the official Problem Name, Number, and Difficulty:
-                             `### 🧩 LeetCode <Number>: <Full Problem Title> (<Difficulty>)`
-                           - **Core Algorithmic Pattern**: (e.g., Intervals & Sorting, Two Pointers, Sliding Window, Monotonic Stack, DP).
-                           - **Problem Breakdown & Key Intuition**: Clearly explain the objective, constraints, edge cases, and why the optimal strategy works.
-                           - **Optimal Java Solution (DEFAULT)**: ALWAYS write clean, production-grade, well-commented **Java** code inside a ````java ... ```` block.
-                           - **Complexity Analysis**: Explicit Big-O Time Complexity (e.g., `O(N log N)`) and Space Complexity (e.g., `O(N)`).
-                        
-                        2. **Core Computer Science Subjects (OS & DBMS & Networks & System Design)**:
-                           - **Operating Systems (OS)**: Process Scheduling, Threads, Deadlocks (Conditions & Prevention), Mutexes/Semaphores, Virtual Memory, Paging, TLB, Page Replacement Algorithms, File Systems.
-                           - **DBMS & SQL**: Relational DBs, ACID properties, Normalization (1NF, 2NF, 3NF, BCNF), Indexing (B-Trees, B+ Trees, Hash Indexes), Transactions, Isolation levels, Query optimization, and SQL code snippets.
-                           - **Computer Networks**: TCP vs UDP, 3-way Handshake, HTTP/1.1 vs HTTP/2 vs HTTP/3, HTTPS/TLS, DNS, WebSockets, OSI 7-Layer Model.
-                           - **System Design**: High/Low Level Design, Caching strategies, Load Balancers, Sharding, Microservices vs Monoliths, Rate Limiting.
-                        
-                        3. **Personal Study, Revision Habits & General Conversation**:
-                           - If the user asks for personal study advice, time management, interview roadmap, motivation, or general conversational chat, respond warmly, encouragingly, and with structured, actionable advice.
-                           - Never refuse general or personal queries.
-                        
-                        4. **Formatting**:
-                           - Use bolding, bullet points, headers (`###`), and ````java ... ```` (or ````sql ... ````) blocks to make every response visually clear and easy to read.
+                        You are Reviser — a warm, friendly, genuinely helpful AI assistant.
+                        You can chat about ANYTHING the user brings up (casual conversation,
+                        personal questions, opinions, jokes, life advice, whatever's on their
+                        mind) and you answer naturally and in good humour, the way a smart,
+                        easy-going friend would. Never refuse to engage, never lecture the user
+                        about "staying on topic", and never redirect a casual question back to
+                        studying. Just be a great conversationalist who also happens to be an
+                        expert engineer.
+
+                        You are especially strong at software engineering and interview prep —
+                        Data Structures & Algorithms (in Java), OS, DBMS, Computer Networks,
+                        System Design, and Spring Boot — so when those come up, go deep with
+                        clean GitHub Markdown, runnable Java, and honest Big-O analysis.
+
+                        SPECIAL BEHAVIOUR — only when the user runs `/solved <number>` or `/solve <number>`:
+                        - Begin with: `### 🧩 LeetCode <Number>: <Full Problem Title> (<Difficulty>)`
+                        - Present the **4-Line DSA Journal** (Sam's 3-Month Roadmap standard):
+                          - **1. Trigger**: the keyword/condition in the problem that signals the pattern.
+                          - **2. Template**: the reusable algorithmic skeleton in clean Java.
+                          - **3. Variant**: how this problem adapts or differs from the base pattern.
+                          - **4. Failure**: the common pitfall or bug to watch for.
+                        - Give the complete, optimal **Java solution** in a ```java ... ``` block.
+                        - State explicit Time and Space Complexity.
+                        - If the problem details were not accessible online, politely say:
+                          *"I searched LeetCode for this problem but couldn't retrieve its
+                          description right now. Could you paste or upload the problem statement
+                          here? Once you do, I'll generate the full 4-line journal and optimal
+                          Java solution."*
+
+                        For everything else, just reply helpfully and conversationally to
+                        whatever was actually asked.
                         """;
+
+                String extraPrompt = trimmed;
+                if (isSolveCmd && lcInfo != null && Boolean.TRUE.equals(lcInfo.get("found"))) {
+                    String desc = lcInfo.get("description") != null ? String.valueOf(lcInfo.get("description")) : "";
+                    String descSnippet = desc.length() > 300 ? desc.substring(0, 300) : desc;
+                    extraPrompt = String.format("User ran /solved %s. LeetCode Problem Info: Title: %s, Difficulty: %s, Topic Tags: %s. Description snippet: %s. Please generate the 4-line DSA journal (Trigger, Template, Variant, Failure) and optimal Java solution.",
+                            lcInfo.get("problemNumber"), lcInfo.get("title"), lcInfo.get("difficulty"), lcInfo.get("topics"), descSnippet);
+                } else if (isSolveCmd && (lcInfo == null || !Boolean.TRUE.equals(lcInfo.get("found")))) {
+                    extraPrompt = "User typed " + trimmed + ". Note: LeetCode real-time lookup could not find or access this problem. If you recognize this LeetCode problem, explain it with the 4-line journal and Java code; if not, ask the user to paste or upload the problem description in chat.";
+                }
 
                 List<Map<String, Object>> contents = new ArrayList<>();
 
@@ -294,7 +357,7 @@ public class GeminiParsingService {
 
                 contents.add(Map.of(
                         "role", "user",
-                        "parts", List.of(Map.of("text", systemInstruction + "\n\nUser Message: " + trimmed))
+                        "parts", List.of(Map.of("text", systemInstruction + "\n\nUser Message: " + extraPrompt))
                 ));
 
                 Map<String, Object> requestBody = Map.of("contents", contents);
@@ -307,24 +370,26 @@ public class GeminiParsingService {
                 JsonNode response = restTemplate.postForObject(getGeminiUrl(), request, JsonNode.class);
 
                 if (response != null && response.has("candidates") && !response.get("candidates").isEmpty()) {
-                    String rawText = extractCandidateText(response.get("candidates").get(0));
-
-                    result.put("reply", rawText);
-
-                    // Extract problem number from query or response to suggest /solve <number> if not already detected
-                    if (!result.containsKey("suggestedSolveCommand")) {
-                        Pattern numPattern = Pattern.compile("(?:#|leetcode|lc|problem|no\\.?|number)?\\s*(\\b\\d{1,4}\\b)", Pattern.CASE_INSENSITIVE);
-                        Matcher matcher = numPattern.matcher(trimmed);
-                        if (matcher.find()) {
-                            result.put("suggestedSolveCommand", "/solve " + matcher.group(1));
-                        } else {
-                            Matcher respMatcher = numPattern.matcher(rawText);
-                            if (respMatcher.find()) {
-                                result.put("suggestedSolveCommand", "/solve " + respMatcher.group(1));
-                            }
-                        }
+                    JsonNode candidate = response.get("candidates").get(0);
+                    String rawText = extractCandidateText(candidate);
+                    if (rawText != null && !rawText.isBlank()) {
+                        result.put("reply", rawText);
+                        return result;
                     }
-
+                    // The candidate had no usable text — a safety/recitation block, or a
+                    // thought-only response. Surface an honest message instead of letting
+                    // the frontend fall back to generic "I've processed your message" filler.
+                    String finishReason = candidate.has("finishReason") ? candidate.get("finishReason").asText() : null;
+                    log.warn("Gemini returned an empty reply (finishReason={}).", finishReason);
+                    if (finishReason != null && ("SAFETY".equals(finishReason) || "RECITATION".equals(finishReason)
+                            || "PROHIBITED_CONTENT".equals(finishReason) || "BLOCKLIST".equals(finishReason))) {
+                        result.put("reply", "I couldn't answer that one — the model's safety filter blocked the response (`"
+                                + finishReason + "`). Try rewording it and I'll give it another go.");
+                    } else {
+                        result.put("reply", "Hmm, I drew a blank on that — the model came back empty"
+                                + (finishReason != null ? " (`" + finishReason + "`)" : "")
+                                + ". Mind rephrasing it and I'll take another shot?");
+                    }
                     return result;
                 }
             } catch (Exception e) {
@@ -335,12 +400,89 @@ public class GeminiParsingService {
         // Offline / Fallback
         ChatParseResponseDto localMatch = matchFromLocalRegistry(queryForDetection);
         result.put("reply", conversationalFallback(trimmed, localMatch, mode));
-        if (localMatch != null && localMatch.getProblemNumber() != null) {
-            result.put("suggestedSolveCommand", "/solve " + localMatch.getProblemNumber());
+        if (isSolveCmd && localMatch != null && localMatch.getProblemNumber() != null) {
+            result.put("suggestedSolveCommand", "/solved " + localMatch.getProblemNumber());
             if (!result.containsKey("detectedProblem")) {
                 result.put("detectedProblem", localMatch);
             }
         }
+        return result;
+    }
+
+    /**
+     * Evaluates whether a monthly target step should be rescheduled.
+     * Returns a clear decision: YES or NO with a concise rationale.
+     */
+    public Map<String, Object> evaluateStepRescheduling(String stepTitle, String category, Integer targetCount, Integer completedCount, String context) {
+        Map<String, Object> result = new HashMap<>();
+        String cat = category != null ? category : "DSA";
+        int target = targetCount != null ? targetCount : 10;
+        int completed = completedCount != null ? completedCount : 0;
+
+        if (apiKey != null && !apiKey.trim().isEmpty()) {
+            try {
+                String prompt = String.format("""
+                    You are Sam's executive SDE mentor evaluating a milestone in his 3-Month Roadmap (11 Sept - 11 Dec 2026).
+                    Step Title: "%s"
+                    Category: "%s"
+                    Target Count: %d
+                    Completed: %d
+                    Context: "%s"
+
+                    Roadmap Rule: DSA & Spaced Repetition must be protected at all costs. Never sacrifice DSA for premature system design or low-priority items.
+                    Does this step need rescheduling or adjustment?
+                    
+                    Respond strictly in raw JSON (no markdown, no backticks):
+                    {
+                      "rescheduleRecommended": true,
+                      "decision": "YES",
+                      "rationale": "Clear 1-2 sentence assessment.",
+                      "suggestedAdjustment": "Suggested adjustment or 'Stay on track.'"
+                    }
+                    Note: decision must be either "YES" or "NO".
+                    """, stepTitle, cat, target, completed, context != null ? context : "3-Month SDE Roadmap Pacing");
+
+                Map<String, Object> requestBody = Map.of(
+                        "contents", List.of(Map.of(
+                                "role", "user",
+                                "parts", List.of(Map.of("text", prompt))
+                        ))
+                );
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.set("x-goog-api-key", apiKey);
+                headers.setContentType(MediaType.APPLICATION_JSON);
+
+                HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+                JsonNode response = restTemplate.postForObject(getGeminiUrl(), request, JsonNode.class);
+
+                if (response != null && response.has("candidates") && !response.get("candidates").isEmpty()) {
+                    String rawText = extractCandidateText(response.get("candidates").get(0));
+                    String jsonClean = rawText.replaceAll("(?s)^```(?:json)?|```$", "").trim();
+                    try {
+                        JsonNode parsed = objectMapper.readTree(jsonClean);
+                        result.put("rescheduleRecommended", parsed.path("rescheduleRecommended").asBoolean(false));
+                        result.put("decision", parsed.path("decision").asText("NO"));
+                        result.put("rationale", parsed.path("rationale").asText("Step is well-aligned with current roadmap velocity."));
+                        result.put("suggestedAdjustment", parsed.path("suggestedAdjustment").asText("Stay on track."));
+                        return result;
+                    } catch (Exception parseEx) {
+                        log.warn("Failed to parse rescheduling JSON: {}", parseEx.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Gemini evaluateStepRescheduling failed: {}", e.getMessage());
+            }
+        }
+
+        // Smart deterministic heuristic fallback
+        boolean behind = completed < (target * 0.3);
+        result.put("rescheduleRecommended", behind);
+        result.put("decision", behind ? "YES" : "NO");
+        result.put("rationale", behind 
+            ? "Pace is currently under 30% of target; adjust batch size to 2 problems/day to protect recall without backlog fatigue." 
+            : "Velocity is healthy and within sustainable roadmap thresholds.");
+        result.put("suggestedAdjustment", behind ? "Shift 2 new problems/day + day-7 re-solves to protect consolidation." : "Stay on track.");
         return result;
     }
 

@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Target, 
-  Plus, 
-  Trash2, 
-  Save, 
-  Sparkles, 
-  CheckCircle2, 
-  Clock, 
-  ChevronDown, 
-  ChevronUp, 
-  ArrowRight, 
-  BookOpen, 
-  Zap, 
-  Layers, 
+import {
+  Target,
+  Plus,
+  Trash2,
+  Save,
+  Sparkles,
+  CheckCircle2,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+  BookOpen,
+  Zap,
+  Layers,
   HelpCircle,
   Calendar,
   Check,
@@ -33,22 +33,31 @@ import confetti from 'canvas-confetti';
 import { api } from '../services/api';
 import { Modal, Button } from '../components/ui';
 
+export const ROADMAP_CATEGORIES = [
+  { id: 'DSA', label: 'DSA & Pattern Review', desc: '12 hrs/wk · 2 new/day + 4 re-solves (Two Pointers, DP, Trees, Graphs)' },
+  { id: 'Core CS', label: 'Core CS (DBMS / OS / CN)', desc: '2.5 hrs/wk · 30 min/day low-energy slot (DBMS first, OS next, CN last)' },
+  { id: 'Workers Den', label: 'Workers Den', desc: '8 hrs/wk · Redis caching, DB indexing, connection pooling' },
+  { id: 'Spring Boot Drill', label: 'Spring Boot Drill', desc: '1.5 hrs/wk · 1 runtime execution context question/week' },
+  { id: 'Applications / Referrals', label: 'Applications & Referrals', desc: '2.5 hrs/wk · 3-5 referrals/week, JSCOE alumni, tracker' },
+  { id: 'Open Source', label: 'Open Source', desc: '5 hrs/wk · Sundays: JabRef PRs, LFX / GSoC positioning' }
+];
+
 const QUICK_PROMPTS = [
   {
-    title: 'Top Tech SDE Sprint',
-    desc: 'Target 50+ DSA problems (Graphs, DP, Trees) + DBMS transactions & OS paging for 4-week interviews.'
+    title: 'Sam Roadmap: Summer 2027 SDE Sprint',
+    desc: '35.5 hrs/wk: DSA 12h, Core CS 2.5h, Workers Den 8h, Spring Drill 1.5h, Referrals 2.5h, Open Source 5h.'
   },
   {
-    title: 'Algorithmic Weak Spots',
-    desc: 'Focus heavily on Sliding Window, Dynamic Programming, and Monotonic Stack with 3 hours daily.'
+    title: 'Weeks 1–4 Consolidation Phase',
+    desc: 'Two pointers, sliding window, prefix sum, binary search on answer, monotonic stack, intervals with 4-line journal.'
   },
   {
-    title: 'Balanced Placement Prep',
-    desc: '2 new DSA problems/day, 1 DBMS lecture daily, alternate OS theory, and 1h build slot for projects.'
+    title: 'Weeks 5–8 DP & Trees Volume',
+    desc: '1D/2D DP, knapsack, trees BFS/DFS, heaps + Saturday timed OA simulations (90 min, no AI).'
   },
   {
-    title: 'Intensive 80+ Marathon',
-    desc: 'High-intensity 80+ problem marathon, SM-2 spaced repetition daily recalls, and weekly mock reviews.'
+    title: 'Weeks 9–12 Graphs & Final Polish',
+    desc: 'Graphs, topological sort, union-find, backtracking, tries, peer mock interviews, and final exam ramp-down.'
   }
 ];
 
@@ -68,10 +77,10 @@ function startBackgroundAnalysis(prompt, answers = {}, month) {
   if (!trimmed || trimmed.length < 4) return Promise.resolve(null);
 
   // Check if an identical request is already running
-  if (inFlightAnalysisPromise && 
-      inFlightAnalysisParams?.prompt === trimmed &&
-      inFlightAnalysisParams?.month === month &&
-      JSON.stringify(inFlightAnalysisParams?.answers) === JSON.stringify(answers)) {
+  if (inFlightAnalysisPromise &&
+    inFlightAnalysisParams?.prompt === trimmed &&
+    inFlightAnalysisParams?.month === month &&
+    JSON.stringify(inFlightAnalysisParams?.answers) === JSON.stringify(answers)) {
     return inFlightAnalysisPromise;
   }
 
@@ -91,14 +100,14 @@ function startBackgroundAnalysis(prompt, answers = {}, month) {
             updatedAt: Date.now()
           };
           localStorage.setItem(`reviser_monthly_draft_${month}`, JSON.stringify(draftData));
-        } catch (_) {}
+        } catch (_) { }
 
         // Persist draft to backend DB so it survives app reloads & navigation
         api.saveGoalDraft({
           month,
           userGoalPrompt: trimmed,
           aiAnalysis: res
-        }).catch(() => {});
+        }).catch(() => { });
 
         notifySubscribers({ type: 'success', data: res, params: inFlightAnalysisParams });
         return res;
@@ -171,7 +180,7 @@ const generateLocalFallbackPlan = (prompt, answers = {}) => {
 
 export default function MonthlyGoals() {
   const currentMonthKey = new Date().toISOString().slice(0, 7);
-  
+
   const [month, setMonth] = useState(currentMonthKey);
   const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -203,7 +212,47 @@ export default function MonthlyGoals() {
   // Manual target addition state
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+  const [selectedPresetCat, setSelectedPresetCat] = useState('DSA');
+  const [customCategoryName, setCustomCategoryName] = useState('');
   const [newCount, setNewCount] = useState(15);
+  const [goalStatus, setGoalStatus] = useState('DRAFT'); // 'DRAFT' or 'ACCEPTED'
+  const [rescheduleEvaluations, setRescheduleEvaluations] = useState({});
+
+  const handleAskGeminiRescheduling = async (target) => {
+    const cat = target.category;
+    setRescheduleEvaluations(prev => ({
+      ...prev,
+      [cat]: { ...prev[cat], loading: true }
+    }));
+    try {
+      const res = await api.evaluateRescheduling({
+        stepTitle: target.category,
+        category: target.category,
+        targetCount: target.targetCount,
+        completedCount: target.completedCount || 0,
+        context: `Sam 3-Month Roadmap (11 Sept to 11 Dec 2026). Current month: ${currentMonthKey}.`
+      });
+      setRescheduleEvaluations(prev => ({
+        ...prev,
+        [cat]: {
+          decision: res.decision || (res.rescheduleRecommended ? 'YES' : 'NO'),
+          rationale: res.rationale || '',
+          adjustment: res.suggestedAdjustment || '',
+          loading: false
+        }
+      }));
+    } catch (err) {
+      setRescheduleEvaluations(prev => ({
+        ...prev,
+        [cat]: {
+          decision: 'NO',
+          rationale: 'Could not contact Gemini: ' + err.message + '. Pacing remains valid.',
+          adjustment: 'Stay on track.',
+          loading: false
+        }
+      }));
+    }
+  };
 
   // Load targets and saved AI plan from PostgreSQL database
   const loadGoals = () => {
@@ -211,6 +260,12 @@ export default function MonthlyGoals() {
     api.getCurrentMonthGoal()
       .then(data => {
         if (data) {
+          if (data.status) {
+            setGoalStatus(data.status);
+          } else if (data.targets && data.targets.length > 0) {
+            setGoalStatus('ACCEPTED');
+          }
+
           if (Array.isArray(data.targets) && data.targets.length > 0) {
             setTargets(data.targets.map(t => ({
               category: t.category,
@@ -241,7 +296,7 @@ export default function MonthlyGoals() {
               if (parsed.updatedAt) setLastAnalyzedAt(new Date(parsed.updatedAt));
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       })
       .catch(() => {
         // If DB has no record yet, still restore from localStorage
@@ -256,7 +311,7 @@ export default function MonthlyGoals() {
               if (parsed.updatedAt) setLastAnalyzedAt(new Date(parsed.updatedAt));
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       })
       .finally(() => setLoading(false));
   };
@@ -300,8 +355,8 @@ export default function MonthlyGoals() {
   const now = new Date();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const daysRemaining = Math.max(1, daysInMonth - now.getDate());
-  const dailyTargetCalculated = totalTarget > 0 
-    ? Math.max(1, Math.round(((totalTarget - totalCompleted) / daysRemaining) * 10) / 10) 
+  const dailyTargetCalculated = totalTarget > 0
+    ? Math.max(1, Math.round(((totalTarget - totalCompleted) / daysRemaining) * 10) / 10)
     : 0;
 
   // Handle typing with auto-save to localStorage and gentle debounced trigger
@@ -319,7 +374,7 @@ export default function MonthlyGoals() {
         month,
         updatedAt: Date.now()
       }));
-    } catch (_) {}
+    } catch (_) { }
 
     // Gentle 2.5s idle auto-analyze (only if user stops typing and text is substantial)
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -384,13 +439,13 @@ export default function MonthlyGoals() {
         liveAnalysis: plan,
         updatedAt: Date.now()
       }));
-    } catch (_) {}
+    } catch (_) { }
 
     api.saveGoalDraft({
       month,
       userGoalPrompt: goalPrompt,
       aiAnalysis: plan
-    }).catch(() => {});
+    }).catch(() => { });
   };
 
   const handleApplyLivePlan = async () => {
@@ -410,12 +465,15 @@ export default function MonthlyGoals() {
         targets: newTargets,
         priorityOrder: newTargets.map(t => t.category),
         userGoalPrompt: goalPrompt,
-        aiAnalysis: liveAnalysis
+        aiAnalysis: liveAnalysis,
+        status: 'ACCEPTED'
       };
 
       await api.setMonthlyGoal(goalData);
       setTargets(newTargets);
-      setApplySuccessMsg('✓ Calibrated monthly curriculum & AI roadmap successfully saved to database!');
+      setGoalStatus('ACCEPTED');
+      setShowAiStudio(false);
+      setApplySuccessMsg('✓ 3-Month Roadmap Plan Accepted & Active in Database!');
 
       confetti({
         particleCount: 70,
@@ -432,14 +490,15 @@ export default function MonthlyGoals() {
     }
   };
 
-  // Manual target management
+  // Manual target management with Roadmap Categories & Custom Category option
   const handleAddManualTarget = async (e) => {
     e.preventDefault();
-    if (!newCategory.trim()) return;
+    const finalCat = selectedPresetCat === '__custom__' ? customCategoryName.trim() : selectedPresetCat;
+    if (!finalCat) return;
 
     const updated = [
-      ...targets.filter(t => t.category.toLowerCase() !== newCategory.trim().toLowerCase()),
-      { category: newCategory.trim(), targetCount: parseInt(newCount, 10) || 10, completedCount: 0 }
+      ...targets.filter(t => t.category.toLowerCase() !== finalCat.toLowerCase()),
+      { category: finalCat, targetCount: parseInt(newCount, 10) || 10, completedCount: 0 }
     ];
 
     try {
@@ -448,10 +507,13 @@ export default function MonthlyGoals() {
         targets: updated,
         priorityOrder: updated.map(t => t.category),
         userGoalPrompt: goalPrompt,
-        aiAnalysis: liveAnalysis
+        aiAnalysis: liveAnalysis,
+        status: 'ACCEPTED'
       });
       setTargets(updated);
+      setGoalStatus('ACCEPTED');
       setShowAddModal(false);
+      setCustomCategoryName('');
       setNewCategory('');
       setNewCount(15);
     } catch (err) {
@@ -512,6 +574,72 @@ export default function MonthlyGoals() {
           </div>
         </div>
       </header>
+
+      {/* Accepted Roadmap Banner */}
+      {goalStatus === 'ACCEPTED' && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.12) 0%, rgba(14, 165, 164, 0.08) 100%)',
+          border: '1.5px solid rgba(5, 150, 105, 0.4)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '16px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          boxShadow: 'var(--shadow-card)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              background: 'var(--accent-emerald)',
+              color: '#0c0e14',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: '900',
+              flexShrink: 0
+            }}>
+              <Check size={22} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-serif-title)' }}>
+                  3-Month Roadmap Plan: Accepted &amp; Active
+                </span>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: '700',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  background: 'var(--color-green-subtle)',
+                  color: 'var(--color-green)',
+                  border: '1px solid rgba(5, 150, 105, 0.3)'
+                }}>
+                  ACCEPTED · 11 SEPT 2026 → 11 DEC 2026
+                </span>
+              </div>
+              <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: '3px 0 0 0' }}>
+                Your study roadmap is accepted and actively driving daily slicing and spaced repetition. Priority targets: DSA, Core CS, Workers Den, Spring Boot Drill, and Open Source.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setShowAiStudio(!showAiStudio)}
+              className="btn-secondary"
+              style={{ fontSize: '0.82rem', padding: '7px 14px' }}
+            >
+              <Sparkles size={14} />
+              <span>{showAiStudio ? 'Close Studio' : 'Recalibrate / Edit Roadmap'}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Slicing Metrics Panel (Live DB Connected) */}
       <section className="rv-glance" style={{ marginBottom: '24px' }}>
@@ -641,9 +769,9 @@ export default function MonthlyGoals() {
                 )}
               </div>
 
-              <button 
-                onClick={() => setShowAiStudio(false)} 
-                className="btn-secondary" 
+              <button
+                onClick={() => setShowAiStudio(false)}
+                className="btn-secondary"
                 style={{ padding: '6px 10px', fontSize: '0.8rem' }}
                 title="Close Studio"
               >
@@ -992,13 +1120,13 @@ export default function MonthlyGoals() {
                             background: (liveAnalysis.feasibility.score >= 80)
                               ? 'rgba(5,150,105,0.12)'
                               : (liveAnalysis.feasibility.score >= 65)
-                              ? 'rgba(217,119,6,0.14)'
-                              : 'rgba(220,38,38,0.12)',
+                                ? 'rgba(217,119,6,0.14)'
+                                : 'rgba(220,38,38,0.12)',
                             color: (liveAnalysis.feasibility.score >= 80)
                               ? 'var(--color-green)'
                               : (liveAnalysis.feasibility.score >= 65)
-                              ? 'var(--color-amber)'
-                              : 'var(--accent-rose)',
+                                ? 'var(--color-amber)'
+                                : 'var(--accent-rose)',
                             border: '1px solid currentColor'
                           }}>
                             {liveAnalysis.feasibility.verdict || 'Calibrated Pace'}
@@ -1029,8 +1157,8 @@ export default function MonthlyGoals() {
                           background: (liveAnalysis.feasibility.score >= 80)
                             ? 'linear-gradient(90deg, #059669, #10b981)'
                             : (liveAnalysis.feasibility.score >= 65)
-                            ? 'linear-gradient(90deg, #d97706, #f59e0b)'
-                            : 'linear-gradient(90deg, #dc2626, #ef4444)',
+                              ? 'linear-gradient(90deg, #d97706, #f59e0b)'
+                              : 'linear-gradient(90deg, #dc2626, #ef4444)',
                           transition: 'width 0.4s ease'
                         }} />
                       </div>
@@ -1142,7 +1270,7 @@ export default function MonthlyGoals() {
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
                         {liveAnalysis.tacticalSuggestions.map((sug, idx) => (
-                          <div 
+                          <div
                             key={idx}
                             style={{
                               background: 'var(--bg-card-inset)',
@@ -1175,11 +1303,24 @@ export default function MonthlyGoals() {
                       padding: '18px 22px',
                       boxShadow: 'var(--shadow-card)'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                        <Lightbulb size={18} color="var(--color-amber)" />
-                        <span style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-serif-title)' }}>
-                          Dynamic Clarifying Diagnostic Questions
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Lightbulb size={18} color="var(--color-amber)" />
+                          <span style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-serif-title)' }}>
+                            Dynamic Clarifying Diagnostic Questions
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => triggerImmediateAnalysis()}
+                          disabled={isAnalyzing}
+                          className="btn-secondary"
+                          style={{ fontSize: '0.78rem', padding: '5px 12px', opacity: isAnalyzing ? 0.6 : 1 }}
+                          title="Re-run Gemini now to refresh / fetch the next diagnostic questions"
+                        >
+                          <Sparkles size={13} className={isAnalyzing ? 'spin' : ''} />
+                          <span>{isAnalyzing ? 'Analyzing…' : 'Refresh questions'}</span>
+                        </button>
                       </div>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
                         Select auto-suggested options or add your own custom opinion / DSA topics below to calibrate your curriculum in real-time:
@@ -1189,7 +1330,7 @@ export default function MonthlyGoals() {
                         {liveAnalysis.questions.map((q) => {
                           const isCustomSelected = answers[q.id] && !q.options?.includes(answers[q.id]);
                           return (
-                            <div 
+                            <div
                               key={q.id}
                               style={{
                                 background: 'var(--bg-card-inset)',
@@ -1540,7 +1681,7 @@ export default function MonthlyGoals() {
                       </div>
 
                       {/* Prominent Finalise Action Button */}
-                      <button 
+                      <button
                         onClick={handleApplyLivePlan}
                         disabled={saving}
                         style={{
@@ -1572,8 +1713,8 @@ export default function MonthlyGoals() {
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                           {liveAnalysis.targets.categories.map((t, idx) => (
-                            <div 
-                              key={idx} 
+                            <div
+                              key={idx}
                               style={{
                                 background: 'var(--bg-card-inset)',
                                 border: '1px solid var(--border-subtle)',
@@ -1604,7 +1745,7 @@ export default function MonthlyGoals() {
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px' }}>
                           {liveAnalysis.weeklyMilestones.map((w, idx) => (
-                            <div 
+                            <div
                               key={idx}
                               style={{
                                 background: 'var(--bg-card-inset)',
@@ -1666,7 +1807,7 @@ export default function MonthlyGoals() {
                       ← Back: Questions &amp; Off Days
                     </button>
 
-                    <button 
+                    <button
                       onClick={handleApplyLivePlan}
                       disabled={saving}
                       style={{
@@ -1873,11 +2014,56 @@ export default function MonthlyGoals() {
               const pct = Math.min(100, Math.round(((t.completedCount || 0) / Math.max(1, t.targetCount || 1)) * 100));
               const colorCycle = ['var(--color-blue)', 'var(--color-purple)', 'var(--color-green)', 'var(--color-amber)'];
               const grad = colorCycle[idx % colorCycle.length];
+              const evalResult = rescheduleEvaluations[t.category];
 
               return (
-                <div key={idx} className="rv-progline">
-                  <div className="top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="name" style={{ fontWeight: '600' }}>{t.category}</span>
+                <div key={idx} className="rv-progline" style={{ marginBottom: '16px' }}>
+                  <div className="top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <span className="name" style={{ fontWeight: '700', fontSize: '0.92rem' }}>{t.category}</span>
+
+                      {/* Gemini Rescheduling Advisor button & result */}
+                      {evalResult ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{
+                            fontSize: '0.7rem',
+                            fontFamily: 'JetBrains Mono',
+                            fontWeight: '800',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: evalResult.decision === 'YES' ? 'var(--color-amber-subtle)' : 'var(--color-green-subtle)',
+                            color: evalResult.decision === 'YES' ? 'var(--color-amber)' : 'var(--color-green)',
+                            border: '1px solid',
+                            borderColor: evalResult.decision === 'YES' ? 'rgba(217, 119, 6, 0.4)' : 'rgba(5, 150, 105, 0.4)'
+                          }}>
+                            {evalResult.decision === 'YES' ? '⚠️ RESCHEDULE: YES' : '✓ RESCHEDULE: NO'}
+                          </span>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                            {evalResult.rationale}
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleAskGeminiRescheduling(t)}
+                          className="btn-secondary"
+                          style={{
+                            fontSize: '0.7rem',
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            borderColor: 'var(--border-subtle)'
+                          }}
+                          title="Ask Gemini if this milestone should be rescheduled based on roadmap velocity"
+                        >
+                          <Sparkles size={11} color="var(--accent-cyan)" />
+                          <span>Ask Gemini Rescheduling</span>
+                        </button>
+                      )}
+                    </div>
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span className="val" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                         {t.completedCount || 0} / {t.targetCount} ({pct}%)
@@ -1939,8 +2125,8 @@ export default function MonthlyGoals() {
         <Modal
           onClose={() => setShowAddModal(false)}
           icon={Target}
-          title="Add Custom Category Target"
-          maxWidth={420}
+          title="Add Roadmap Category Target"
+          maxWidth={460}
           footer={
             <>
               <Button variant="secondary" onClick={() => setShowAddModal(false)} style={{ fontSize: '0.82rem' }}>
@@ -1955,22 +2141,43 @@ export default function MonthlyGoals() {
           <form id="add-target-form" onSubmit={handleAddManualTarget} style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-serif-title)', marginBottom: '6px' }}>
-                Category Name
+                Roadmap Track Category
               </label>
-              <input
-                type="text"
-                required
+              <select
                 className="form-input"
-                placeholder="e.g. Graphs & BFS/DFS or DBMS Theory"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                autoFocus
-              />
+                value={selectedPresetCat}
+                onChange={(e) => setSelectedPresetCat(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', fontSize: '0.84rem' }}
+              >
+                {ROADMAP_CATEGORIES.map(rc => (
+                  <option key={rc.id} value={rc.id}>
+                    {rc.label}
+                  </option>
+                ))}
+                <option value="__custom__">+ Add Custom Category...</option>
+              </select>
             </div>
+
+            {selectedPresetCat === '__custom__' && (
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-serif-title)', marginBottom: '6px' }}>
+                  Custom Category Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="form-input"
+                  placeholder="e.g. Mock Interviews or Low-Level Design"
+                  value={customCategoryName}
+                  onChange={(e) => setCustomCategoryName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            )}
 
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-serif-title)', marginBottom: '6px' }}>
-                Target Count (Problems / Topics)
+                Target Count (Problems / Milestones)
               </label>
               <input
                 type="number"

@@ -15,7 +15,9 @@ public class ReviewRequestDto {
     private boolean rememberedPattern;
     private boolean couldExplainSolution;
 
-    @Size(max = 1000, message = "Notes must be 1000 characters or fewer")
+    // Room for a full problem description + journal + user notes. The DB column
+    // is TEXT, so this cap only guards against absurd payloads, not real notes.
+    @Size(max = 20000, message = "Notes must be 20000 characters or fewer")
     private String notes;
 
     public int getConfidence() { return confidence; }

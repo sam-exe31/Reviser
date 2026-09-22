@@ -11,8 +11,11 @@ import org.example.reviser.problem.Problem;
 import org.example.reviser.problem.ProblemRepository;
 import org.example.reviser.review.reviewState.ReviewState;
 import org.example.reviser.review.reviewState.ReviewStateRepository;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -21,6 +24,8 @@ import java.util.*;
 
 @Service
 public class DailyLogService {
+
+    private static final Logger log = LoggerFactory.getLogger(DailyLogService.class);
 
     private final DailyLogRepository dailyLogRepository;
     private final DailyLogEntryRepository dailyLogEntryRepository;
@@ -49,6 +54,8 @@ public class DailyLogService {
     @Transactional
     public DailyOverviewDto getTodayOverview() {
         LocalDate today = LocalDate.now();
+        // Automatic catch-up: ensure midnight rollover is completed for today
+        rolloverMissedTasks();
         DailyLog dailyLog = getOrCreateDailyLog(today);
 
         // 1. Get due SRS reviews
@@ -217,6 +224,13 @@ public class DailyLogService {
 
         dailyLogRepository.save(todayLog);
         return rolledOverCount;
+    }
+
+    @Scheduled(cron = "0 0 0 * * *")
+    public void scheduledMidnightRollover() {
+        log.info("Midnight reached (12:00 AM) — automatically rolling over uncompleted tasks.");
+        int count = rolloverMissedTasks();
+        log.info("Midnight automatic rollover finished: {} tasks rolled over.", count);
     }
 
     private DailyLog getOrCreateDailyLog(LocalDate date) {

@@ -67,6 +67,8 @@ public class GoalSlicingService {
             }
         }
 
+        goal.setStatus(dto.getStatus() != null ? dto.getStatus() : "ACCEPTED");
+
         MonthlyGoal saved = monthlyGoalRepository.save(goal);
         return toResponseDto(saved);
     }
@@ -79,6 +81,8 @@ public class GoalSlicingService {
                     g.setMonth(dto.getMonth());
                     return g;
                 });
+
+        goal.setStatus("DRAFT");
 
         if (dto.getUserGoalPrompt() != null) {
             goal.setUserGoalPrompt(dto.getUserGoalPrompt());
@@ -193,7 +197,8 @@ public class GoalSlicingService {
                 priorityList,
                 targetDtos,
                 goal.getUserGoalPrompt(),
-                aiAnalysis
+                aiAnalysis,
+                goal.getStatus() != null ? goal.getStatus() : "ACCEPTED"
         );
     }
 }

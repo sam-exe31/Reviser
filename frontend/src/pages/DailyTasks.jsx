@@ -67,7 +67,7 @@ export default function DailyTasks({ onStartReview, onNavigateToChat, onNavigate
       </header>
 
       {/* Main Todo List */}
-      <DailyTodoList 
+      <DailyTodoList
         onNavigateToChat={onNavigateToChat}
         onNavigateToLibrary={onNavigateToLibrary}
         onStartReview={onStartReview}

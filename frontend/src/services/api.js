@@ -16,7 +16,7 @@ async function request(endpoint, options = {}) {
             try {
                 const errData = await response.json();
                 errorMsg = errData.message || errData.error || errorMsg;
-            } catch (_) {}
+            } catch (_) { }
             throw new Error(errorMsg);
         }
         if (response.status === 204) return null;
@@ -42,39 +42,39 @@ export const api = {
 
     // Daily & Dashboard
     getTodayOverview: () => request('/daily/today'),
-    completeTask: (problemId, category = 'dsa') => 
+    completeTask: (problemId, category = 'dsa') =>
         request(`/daily/complete/${problemId}?category=${category}`, { method: 'POST' }),
     rolloverMissed: () => request('/daily/rollover', { method: 'POST' }),
 
     // Monthly Goals & Slicing
-    setMonthlyGoal: (goalData) => 
+    setMonthlyGoal: (goalData) =>
         request('/goals', { method: 'POST', body: JSON.stringify(goalData) }),
     saveGoalDraft: (draftData) =>
         request('/goals/draft', { method: 'POST', body: JSON.stringify(draftData) }),
     getCurrentMonthGoal: () => request('/goals/current'),
-    getDailyBreakdown: (date) => 
+    getDailyBreakdown: (date) =>
         request(date ? `/goals/daily?date=${date}` : '/goals/daily'),
 
     // Problems CRUD
     getProblems: () => request('/problems'),
     getProblem: (id) => request(`/problems/${id}`),
-    createProblem: (data) => 
+    createProblem: (data) =>
         request('/problems', { method: 'POST', body: JSON.stringify(data) }),
-    updateProblem: (id, data) => 
+    updateProblem: (id, data) =>
         request(`/problems/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteProblem: (id) => request(`/problems/${id}`, { method: 'DELETE' }),
 
     // Reviews & Spaced Repetition
-    recordReview: (problemId, reviewData) => 
+    recordReview: (problemId, reviewData) =>
         request(`/problems/${problemId}/reviews`, { method: 'POST', body: JSON.stringify(reviewData) }),
-    getReviewHistory: (problemId) => 
+    getReviewHistory: (problemId) =>
         request(`/problems/${problemId}/reviews`),
-    getReviewState: (problemId) => 
+    getReviewState: (problemId) =>
         request(`/reviews/state/${problemId}`),
     getDueReviews: () => request('/reviews/due'),
 
     // AI Features
-    parseChatMessage: (message) => 
+    parseChatMessage: (message) =>
         request('/chat/parse', { method: 'POST', body: JSON.stringify({ message }) }),
     converseWithAi: (message, history = [], mode = 'general') =>
         request('/chat/converse', { method: 'POST', body: JSON.stringify({ message, history, mode }) }),
@@ -90,27 +90,33 @@ export const api = {
         request('/chat/plan-master-daily', { method: 'POST', body: JSON.stringify({ date, weekNumber, prompt }) }),
     generateSubtasks: (title, category) =>
         request('/chat/generate-subtasks', { method: 'POST', body: JSON.stringify({ title, category }) }),
-    getProblemAiInsight: (problemId) => 
+    getProblemAiInsight: (problemId) =>
         request(`/problems/${problemId}/insight`),
     seedProblems: () =>
         request('/problems/seed-defaults', { method: 'POST' }),
+    lookupLeetCode: (number) =>
+        request('/chat/leetcode-lookup', { method: 'POST', body: JSON.stringify({ number }) }),
+    getLeetCodeRecent: (username, limit = 50) =>
+        request('/chat/leetcode-recent', { method: 'POST', body: JSON.stringify({ username, limit }) }),
+    evaluateRescheduling: (data) =>
+        request('/chat/evaluate-rescheduling', { method: 'POST', body: JSON.stringify(data) }),
 
     // Daily Todos (DB-backed, replaces localStorage)
     getTodos: (date) => request(date ? `/todos?date=${date}` : '/todos'),
-    createTodo: (data) => 
+    createTodo: (data) =>
         request('/todos', { method: 'POST', body: JSON.stringify(data) }),
-    updateTodo: (id, data) => 
+    updateTodo: (id, data) =>
         request(`/todos/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    toggleTodo: (id) => 
+    toggleTodo: (id) =>
         request(`/todos/${id}/toggle`, { method: 'PUT' }),
     deleteTodo: (id) => request(`/todos/${id}`, { method: 'DELETE' }),
-    toggleSubtask: (todoId, subtaskId) => 
+    toggleSubtask: (todoId, subtaskId) =>
         request(`/todos/${todoId}/subtasks/${subtaskId}/toggle`, { method: 'PUT' }),
-    addSubtask: (todoId, data) => 
+    addSubtask: (todoId, data) =>
         request(`/todos/${todoId}/subtasks`, { method: 'POST', body: JSON.stringify(data) }),
-    deleteSubtask: (todoId, subtaskId) => 
+    deleteSubtask: (todoId, subtaskId) =>
         request(`/todos/${todoId}/subtasks/${subtaskId}`, { method: 'DELETE' }),
-    replaceTodos: (date, todos) => 
+    replaceTodos: (date, todos) =>
         request(`/todos/replace?date=${date}`, { method: 'PUT', body: JSON.stringify(todos) }),
 
     // Analytics (real DB computation)
@@ -120,15 +126,15 @@ export const api = {
 
     // Chat History (DB-backed, PostgreSQL)
     getChatHistory: () => request('/chat/history'),
-    saveChatMessage: (msg) => 
+    saveChatMessage: (msg) =>
         request('/chat/history', { method: 'POST', body: JSON.stringify(msg) }),
-    updateChatCardState: (id, data) => 
+    updateChatCardState: (id, data) =>
         request(`/chat/history/${id}/card-state`, { method: 'PUT', body: JSON.stringify(data) }),
-    clearChatHistory: () => 
+    clearChatHistory: () =>
         request('/chat/history', { method: 'DELETE' }),
 
     // App Settings & Preferences (DB-backed, PostgreSQL)
     getSetting: (key) => request(`/settings/${key}`),
-    setSetting: (key, value) => 
+    setSetting: (key, value) =>
         request(`/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
 };

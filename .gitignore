@@ -57,6 +57,10 @@ application-local.properties
 .env
 .env.local
 .env.*.local
+*.env
+# The desktop app reads its Gemini key from here (loaded in desktop/main.js).
+# NEVER commit it — desktop/.env.example is the tracked template.
+desktop/.env
 
 # --- Logs ---
 *.log

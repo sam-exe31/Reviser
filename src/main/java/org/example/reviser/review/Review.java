@@ -31,7 +31,7 @@ public class Review {
 
     private int confidence;
 
-    @Column(length = 1000)
+    @Column(columnDefinition = "TEXT")
     private String notes;
 
     public Review() {}

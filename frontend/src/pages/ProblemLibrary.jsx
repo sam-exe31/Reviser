@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Search, 
-  Plus, 
-  Trash2, 
-  Sparkles, 
+import {
+  Search,
+  Plus,
+  Trash2,
+  Sparkles,
   ExternalLink,
   History,
-  BookOpen
+  BookOpen,
+  Download
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -16,6 +17,9 @@ export default function ProblemLibrary({ onStartReview, onOpenAddModal, onViewHi
   const [search, setSearch] = useState('');
   const [difficultyFilter, setDifficultyFilter] = useState('ALL');
   const [platformFilter, setPlatformFilter] = useState('ALL');
+  const [lcUsername, setLcUsername] = useState(() => localStorage.getItem('reviser_leetcode_username') || '');
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
 
   const loadProblems = async () => {
     setLoading(true);
@@ -32,6 +36,55 @@ export default function ProblemLibrary({ onStartReview, onOpenAddModal, onViewHi
   useEffect(() => {
     loadProblems();
   }, []);
+
+  // Pull the user's most recent accepted LeetCode solves and add the new ones to
+  // the bank. recentAcSubmissionList only returns title/slug, so the backend
+  // enriches each with real difficulty + number from the public problem index.
+  const handleImportRecent = async () => {
+    const username = lcUsername.trim();
+    if (!username) {
+      setImportMsg('Enter your LeetCode username first.');
+      return;
+    }
+    localStorage.setItem('reviser_leetcode_username', username);
+    setImporting(true);
+    setImportMsg('Fetching your recent solved problems from LeetCode…');
+    try {
+      const recent = await api.getLeetCodeRecent(username, 50);
+      if (!recent || recent.length === 0) {
+        setImportMsg(`No public accepted submissions found for "${username}". Make sure the profile is public.`);
+        return;
+      }
+      // Dedup against titles already in the bank (case-insensitive).
+      const existing = new Set(problems.map((p) => (p.title || '').trim().toLowerCase()));
+      let added = 0;
+      let skipped = 0;
+      for (const sub of recent) {
+        const title = (sub.title || '').trim();
+        if (!title) continue;
+        if (existing.has(title.toLowerCase())) { skipped++; continue; }
+        try {
+          await api.createProblem({
+            title,
+            platform: 'LeetCode',
+            difficulty: sub.difficulty || 'Medium',
+            pattern: sub.problemNumber ? `LC #${sub.problemNumber}` : 'Imported',
+          });
+          existing.add(title.toLowerCase());
+          added++;
+        } catch (e) {
+          // One bad row shouldn't abort the whole import.
+          console.error('Failed to import', title, e);
+        }
+      }
+      await loadProblems();
+      setImportMsg(`✓ Imported ${added} new problem${added === 1 ? '' : 's'}${skipped ? ` · ${skipped} already in your bank` : ''}.`);
+    } catch (err) {
+      setImportMsg('Import failed: ' + err.message);
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleDelete = async (id, title) => {
     if (!window.confirm(`Are you sure you want to delete "${title}"?`)) return;
@@ -91,6 +144,64 @@ export default function ProblemLibrary({ onStartReview, onOpenAddModal, onViewHi
           </div>
         </div>
       </header>
+
+      {/* LeetCode recent-solved importer */}
+      <div style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-main)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '12px 18px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        flexWrap: 'wrap',
+        marginBottom: '16px',
+        boxShadow: 'var(--shadow-card)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-serif-title)', fontWeight: 600, fontSize: '0.86rem' }}>
+          <Download size={15} color="var(--accent-purple)" />
+          <span>Import from LeetCode</span>
+        </div>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'var(--bg-card-inset)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)',
+          padding: '6px 12px',
+          minWidth: '200px'
+        }}>
+          <input
+            type="text"
+            placeholder="your LeetCode username"
+            value={lcUsername}
+            onChange={(e) => setLcUsername(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !importing) handleImportRecent(); }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              color: 'var(--text-serif-title)',
+              fontSize: '0.86rem',
+              width: '100%'
+            }}
+          />
+        </div>
+        <button
+          onClick={handleImportRecent}
+          disabled={importing}
+          className="btn-secondary"
+          style={{ fontSize: '0.82rem', opacity: importing ? 0.6 : 1, cursor: importing ? 'default' : 'pointer' }}
+          title="Fetch your 50 most recent accepted problems and add the new ones to your bank"
+        >
+          <Download size={14} />
+          <span>{importing ? 'Importing…' : 'Import recent 50 solved'}</span>
+        </button>
+        {importMsg && (
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flex: 1, minWidth: '160px' }}>{importMsg}</span>
+        )}
+      </div>
 
       {/* Filter and Search Bar */}
       <div style={{
