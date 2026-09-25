@@ -11,6 +11,32 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 
+// One-tap SM-2 grade buttons (Soft Sky). Easy = teal (recalled well, schedule
+// later), Medium = amber (normal spacing), Hard = rose (struggled, sooner).
+const QUICK_GRADE_STYLES = {
+  easy:   { label: 'Easy', color: 'var(--color-green)', bg: 'var(--color-green-subtle)', border: 'rgba(47,156,147,0.35)', title: 'Easy — recalled it well; schedule further out' },
+  medium: { label: 'Med',  color: 'var(--color-amber)', bg: 'var(--color-amber-subtle)', border: 'rgba(213,154,58,0.35)', title: 'Medium — some effort; keep normal spacing' },
+  hard:   { label: 'Hard', color: 'var(--accent-rose)', bg: 'rgba(209,96,122,0.12)',      border: 'rgba(209,96,122,0.35)', title: 'Hard — struggled; bring it back sooner' },
+};
+
+function quickGradeBtnStyle(grade, disabled) {
+  const s = QUICK_GRADE_STYLES[grade];
+  return {
+    padding: '4px 10px',
+    fontSize: '0.72rem',
+    fontWeight: 700,
+    fontFamily: 'JetBrains Mono, monospace',
+    color: s.color,
+    background: s.bg,
+    border: `1px solid ${s.border}`,
+    borderRadius: 'var(--radius-sm)',
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.5 : 1,
+    whiteSpace: 'nowrap',
+    transition: 'all 0.15s ease'
+  };
+}
+
 export default function ProblemLibrary({ onStartReview, onOpenAddModal, onViewHistory }) {
   const [problems, setProblems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +119,25 @@ export default function ProblemLibrary({ onStartReview, onOpenAddModal, onViewHi
       loadProblems();
     } catch (err) {
       alert('Error deleting problem: ' + err.message);
+    }
+  };
+
+  // One-tap SM-2 reschedule straight from the bank — no full review modal.
+  // Hard brings the problem back sooner, Easy pushes it further out; the row's
+  // interval + stability update on reload so the change is visible immediately.
+  const [gradingId, setGradingId] = useState(null);
+  const handleQuickGrade = async (problem, grade) => {
+    if (gradingId) return;
+    setGradingId(problem.id);
+    try {
+      await api.gradeProblem(problem.id, grade);
+      await loadProblems();
+      // Nudge the dashboard / daily revision panel to refresh streak + picks.
+      window.dispatchEvent(new CustomEvent('reviser:todos-changed'));
+    } catch (err) {
+      alert('Could not reschedule: ' + err.message);
+    } finally {
+      setGradingId(null);
     }
   };
 
@@ -315,9 +360,27 @@ export default function ProblemLibrary({ onStartReview, onOpenAddModal, onViewHi
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    {['easy', 'medium', 'hard'].map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => handleQuickGrade(problem, g)}
+                        disabled={gradingId === problem.id}
+                        style={quickGradeBtnStyle(g, gradingId === problem.id)}
+                        title={QUICK_GRADE_STYLES[g].title}
+                        aria-label={`${QUICK_GRADE_STYLES[g].label} — reschedule ${problem.title}`}
+                      >
+                        {QUICK_GRADE_STYLES[g].label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <span style={{ width: '1px', height: '20px', background: 'var(--border-subtle)', flexShrink: 0 }} />
+
                   <button
                     onClick={() => onStartReview && onStartReview(problem)}
                     className="rv-review-btn"
+                    title="Open the full review form to log details"
                   >
                     Review
                   </button>

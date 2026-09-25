@@ -67,11 +67,25 @@ export const api = {
     // Reviews & Spaced Repetition
     recordReview: (problemId, reviewData) =>
         request(`/problems/${problemId}/reviews`, { method: 'POST', body: JSON.stringify(reviewData) }),
+    // One-tap SM-2 grade — no full review modal. The backend maps confidence
+    // through SM-2: Hard (confidence < 3) resets the interval so the problem
+    // comes back sooner; Medium keeps normal spacing; Easy pushes it further out.
+    gradeProblem: (problemId, grade) => {
+        const map = {
+            hard:   { confidence: 2, solvedWithoutHelp: false, neededHint: true,  rememberedPattern: false, couldExplainSolution: false, notes: 'Quick grade: Hard' },
+            medium: { confidence: 3, solvedWithoutHelp: true,  neededHint: true,  rememberedPattern: true,  couldExplainSolution: true,  notes: 'Quick grade: Medium' },
+            easy:   { confidence: 5, solvedWithoutHelp: true,  neededHint: false, rememberedPattern: true,  couldExplainSolution: true,  notes: 'Quick grade: Easy' },
+        };
+        const body = map[grade] || map.medium;
+        return request(`/problems/${problemId}/reviews`, { method: 'POST', body: JSON.stringify(body) });
+    },
     getReviewHistory: (problemId) =>
         request(`/problems/${problemId}/reviews`),
     getReviewState: (problemId) =>
         request(`/reviews/state/${problemId}`),
     getDueReviews: () => request('/reviews/due'),
+    // The ~2 problems to revise today, picked from the solved-problems list.
+    getTodayRevision: (limit = 2) => request(`/reviews/today-revision?limit=${limit}`),
 
     // AI Features
     parseChatMessage: (message) =>
@@ -114,10 +128,16 @@ export const api = {
         request(`/todos/${todoId}/subtasks/${subtaskId}/toggle`, { method: 'PUT' }),
     addSubtask: (todoId, data) =>
         request(`/todos/${todoId}/subtasks`, { method: 'POST', body: JSON.stringify(data) }),
+    updateSubtask: (todoId, subtaskId, data) =>
+        request(`/todos/${todoId}/subtasks/${subtaskId}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteSubtask: (todoId, subtaskId) =>
         request(`/todos/${todoId}/subtasks/${subtaskId}`, { method: 'DELETE' }),
     replaceTodos: (date, todos) =>
         request(`/todos/replace?date=${date}`, { method: 'PUT', body: JSON.stringify(todos) }),
+    // Drag-and-drop reorder — sends the ordered list of todo IDs for the day.
+    // Only sortOrder is updated server-side; completion + subtasks are preserved.
+    reorderTodos: (date, orderedIds) =>
+        request(`/todos/reorder?date=${date}`, { method: 'PUT', body: JSON.stringify(orderedIds) }),
 
     // Analytics (real DB computation)
     getStreak: () => request('/analytics/streak'),

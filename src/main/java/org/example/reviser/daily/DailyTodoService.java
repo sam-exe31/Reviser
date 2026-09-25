@@ -149,6 +149,20 @@ public class DailyTodoService {
     }
 
     @Transactional
+    public DailyTodoResponseDto updateSubtask(Long todoId, Long subtaskId, DailyTodoRequestDto.SubtaskDto stDto) {
+        DailyTodoSubtask subtask = subtaskRepository.findById(subtaskId)
+                .orElseThrow(() -> new RuntimeException("Subtask not found: " + subtaskId));
+
+        if (stDto.getTitle() != null) subtask.setTitle(stDto.getTitle());
+        if (stDto.getCategory() != null) subtask.setCategory(stDto.getCategory());
+        subtaskRepository.save(subtask);
+
+        DailyTodo todo = todoRepository.findById(todoId)
+                .orElseThrow(() -> new RuntimeException("Todo not found: " + todoId));
+        return toResponseDto(todo);
+    }
+
+    @Transactional
     public DailyTodoResponseDto deleteSubtask(Long todoId, Long subtaskId) {
         DailyTodo todo = todoRepository.findById(todoId)
                 .orElseThrow(() -> new RuntimeException("Todo not found: " + todoId));
@@ -203,6 +217,43 @@ public class DailyTodoService {
         }
 
         return result;
+    }
+
+    // Persist a new drag-and-drop order. Only sortOrder is touched, so a reorder
+    // never disturbs completion state or subtasks (unlike replaceAllTodosForDate,
+    // which is delete-then-insert). Any todo the client omitted keeps trailing
+    // in its existing order.
+    @Transactional
+    public List<DailyTodoResponseDto> reorderTodos(LocalDate date, List<Long> orderedIds) {
+        List<DailyTodo> existing = todoRepository.findByDateOrderBySortOrderAsc(date);
+
+        int order = 0;
+        java.util.Set<Long> assigned = new java.util.HashSet<>();
+
+        if (orderedIds != null) {
+            for (Long id : orderedIds) {
+                if (id == null || assigned.contains(id)) continue;
+                for (DailyTodo t : existing) {
+                    if (t.getId().equals(id)) {
+                        t.setSortOrder(order++);
+                        assigned.add(id);
+                        break;
+                    }
+                }
+            }
+        }
+        for (DailyTodo t : existing) {
+            if (!assigned.contains(t.getId())) {
+                t.setSortOrder(order++);
+            }
+        }
+
+        todoRepository.saveAll(existing);
+
+        return existing.stream()
+                .sorted(java.util.Comparator.comparingInt(DailyTodo::getSortOrder))
+                .map(this::toResponseDto)
+                .collect(Collectors.toList());
     }
 
     private DailyTodoResponseDto toResponseDto(DailyTodo todo) {

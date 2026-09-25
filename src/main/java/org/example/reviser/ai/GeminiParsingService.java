@@ -1101,7 +1101,13 @@ public class GeminiParsingService {
                           * Night (Queue-based): 10-15 min active recall recap of covered material (not new).
                         - Saturday: Weekly Review (DSA sliding window / weak spot review + Full DBMS weekly pass + build review).
                         - Sunday: Open buffer day / catch-up.
-                        
+
+                        IMPORTANT constraints:
+                        - Keep it LEAN: at most 4-5 high-value tasks for the day (merge morning + evening habits into ONE item).
+                        - Prioritize the most critical / interview-relevant work first (DSA revision + new problems, core CS theory, build slot).
+                        - Preserve the alternate-day slot (Mon/Wed/Fri: OS; Tue/Thu: Backend).
+                        - Subtasks are OPTIONAL: include 0-3 only when genuinely useful; never pad the list.
+
                         Respond ONLY with raw JSON (no backticks, no markdown):
                         {
                           "date": "%s",
@@ -1265,23 +1271,25 @@ public class GeminiParsingService {
             String buildSlotTitle = "Build Slot: Weekly Theme Focus";
             String buildSlotDesc = "Focused work on the current weekly build deliverable.";
 
-            result.put("summary", "Daily Blueprint (" + dayName + ", " + weekTheme + ") — DSA 2 Revision + 3 New, Daily DBMS, " + (isOddDay ? "OS Revision" : "Backend") + ", and Build Slot.");
-            result.put("estimatedTotalMinutes", 360);
+            result.put("summary", "Lean Daily Blueprint (" + dayName + ", " + weekTheme + ") — DSA 2 Revision + 3 New, Daily DBMS, " + (isOddDay ? "OS Revision" : "Backend") + ", and Build Slot. Habits fold morning + evening.");
+            result.put("estimatedTotalMinutes", 290);
 
             tasks.add(Map.of(
                     "id", "todo-1",
-                    "title", "Early Morning: Light Exercise, Read & Skill Practice",
-                    "description", "Morning physical reset, active reading, and a short skill drill.",
+                    "title", "Daily Habits: Morning + Evening (exercise, read, skill, recap)",
+                    "description", "Morning reset + active reading + skill drill; evening workout; short night recall recap. Streak-based; subtasks optional.",
                     "category", "habit",
                     "taskType", "streak",
                     "priority", "High",
-                    "timeBlock", "6:30 - 7:30 AM",
-                    "estimatedMinutes", 60,
-                    "focusTip", "Streak-based: no makeup, maintain every morning.",
+                    "timeBlock", "Morning & Evening",
+                    "estimatedMinutes", 90,
+                    "focusTip", "Streak-based: keep the chain going; subtasks are optional.",
                     "subtasks", List.of(
-                            Map.of("id", "st-1-1", "title", "Light exercise & stretches", "category", "Warmup", "completed", false),
-                            Map.of("id", "st-1-2", "title", "Reading: 25 min tech book / core concept reading", "category", "Theory", "completed", false),
-                            Map.of("id", "st-1-3", "title", "Skill practice: 15 min drill", "category", "Review", "completed", false)
+                            Map.of("id", "st-1-1", "title", "Light exercise & stretches (morning)", "category", "Warmup", "completed", false),
+                            Map.of("id", "st-1-2", "title", "Reading: 25 min tech / core concept", "category", "Theory", "completed", false),
+                            Map.of("id", "st-1-3", "title", "Skill practice: 15 min drill", "category", "Review", "completed", false),
+                            Map.of("id", "st-1-4", "title", "Evening workout / physical reset", "category", "Warmup", "completed", false),
+                            Map.of("id", "st-1-5", "title", "Night: 10-min active recall recap (no new material)", "category", "Review", "completed", false)
                     )
             ));
 
@@ -1347,39 +1355,6 @@ public class GeminiParsingService {
                     "subtasks", List.of(
                             Map.of("id", "st-5-1", "title", "Implement weekly theme components", "category", "Code", "completed", false),
                             Map.of("id", "st-5-2", "title", "Ship deliverable & test edge cases", "category", "Review", "completed", false)
-                    )
-            ));
-
-            tasks.add(Map.of(
-                    "id", "todo-6",
-                    "title", "Evening: Exercise Session",
-                    "description", "Dedicated evening workout / physical reset.",
-                    "category", "habit",
-                    "taskType", "streak",
-                    "priority", "High",
-                    "timeBlock", "5:30 - 6:45 PM",
-                    "estimatedMinutes", 75,
-                    "focusTip", "Streak-based: daily physical reset.",
-                    "subtasks", List.of(
-                            Map.of("id", "st-6-1", "title", "Warmup & mobility stretches", "category", "Warmup", "completed", false),
-                            Map.of("id", "st-6-2", "title", "Main workout routine", "category", "Warmup", "completed", false),
-                            Map.of("id", "st-6-3", "title", "Cooldown & recovery", "category", "Warmup", "completed", false)
-                    )
-            ));
-
-            tasks.add(Map.of(
-                    "id", "todo-7",
-                    "title", "Night: 10–15 Min Active Recall Recap",
-                    "description", "Quick mental / bullet-point recap of what you covered today (no new material).",
-                    "category", "recap",
-                    "taskType", "queue",
-                    "priority", "Medium",
-                    "timeBlock", "10:00 - 10:15 PM",
-                    "estimatedMinutes", 15,
-                    "focusTip", "Active recall before bed consolidates long-term memory.",
-                    "subtasks", List.of(
-                            Map.of("id", "st-7-1", "title", "Mental review of DSA patterns covered", "category", "Review", "completed", false),
-                            Map.of("id", "st-7-2", "title", "Review DBMS ACID & OS flashcards", "category", "Review", "completed", false)
                     )
             ));
         }
@@ -1456,6 +1431,79 @@ public class GeminiParsingService {
         }
 
         return fallbackMasterDailyPlan(LocalDate.now(), 1, userPlanPrompt);
+    }
+
+    /**
+     * Given a ranked shortlist of already-solved problems (with SM-2 signals),
+     * ask Gemini to choose which {@code limit} to revise TODAY, weighting
+     * overdue / low-confidence items and high-frequency interview topics.
+     * Returns a list of {problemId, reason} in the AI's order. Empty when no
+     * key is configured or on any error — the caller then uses its own
+     * deterministic ranking.
+     */
+    public List<Map<String, Object>> selectRevisionProblems(List<Map<String, Object>> candidates, int limit) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (apiKey == null || apiKey.trim().isEmpty() || candidates == null || candidates.isEmpty()) {
+            return out;
+        }
+        try {
+            String candidateJson = objectMapper.writeValueAsString(candidates);
+            String prompt = """
+                    You are a coding-interview revision coach.
+                    From the candidate list below (problems the user ALREADY solved, with spaced-repetition signals),
+                    choose the %d problems MOST worth revising TODAY.
+                    Prioritize: overdue items (high "overdueDays"), low prior confidence (low "rating"),
+                    never-revised items (reviewCount 0), and high-frequency / currently-trending interview
+                    topics ("important": true, or classic patterns evident from the title/pattern).
+                    Candidates (JSON): %s
+
+                    Respond ONLY with raw JSON (no backticks, no markdown) in this exact shape:
+                    {
+                      "picks": [
+                        { "problemId": 123, "reason": "one short sentence on why to revise this today" }
+                      ]
+                    }
+                    Include at most %d picks, most important first. Only use problemId values from the candidate list.
+                    """.formatted(limit, candidateJson, limit);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("x-goog-api-key", apiKey);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            String body = """
+                    {
+                      "contents": [{"parts": [{"text": %s}]}],
+                      "generationConfig": {
+                        "responseMimeType": "application/json"
+                      }
+                    }
+                    """.formatted(objectMapper.valueToTree(prompt).toString());
+
+            HttpEntity<String> request = new HttpEntity<>(body, headers);
+            JsonNode response = restTemplate.postForObject(getGeminiUrl(), request, JsonNode.class);
+
+            if (response != null && response.has("candidates") && !response.get("candidates").isEmpty()) {
+                String rawText = extractCandidateText(response.get("candidates").get(0));
+                String cleanedJson = extractJsonFromText(rawText);
+                if (cleanedJson != null && !cleanedJson.isEmpty()) {
+                    JsonNode parsed = objectMapper.readTree(cleanedJson);
+                    JsonNode picks = parsed.get("picks");
+                    if (picks != null && picks.isArray()) {
+                        for (JsonNode node : picks) {
+                            if (!node.hasNonNull("problemId")) continue;
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("problemId", node.get("problemId").asLong());
+                            m.put("reason", node.hasNonNull("reason") ? node.get("reason").asText() : "");
+                            out.add(m);
+                            if (out.size() >= limit) break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Gemini revision selection failed: {}, using deterministic ranking", e.getMessage());
+        }
+        return out;
     }
 
     public Map<String, Object> generateSubtasksForTask(String title, String category) {
